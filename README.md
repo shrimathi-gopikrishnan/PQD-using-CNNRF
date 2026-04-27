@@ -1,84 +1,189 @@
 # Power Quality Disturbance (PQD) Classification
 
-A machine learning pipeline for automated detection and classification of power quality disturbances from raw waveform signals. The system extracts multi-domain features (time, frequency, wavelet) and trains several classifiers — with **Random Forest** as the primary deployed model — achieving **~90.6% accuracy** across 17 disturbance classes.
+A complete real-time pipeline for detecting and classifying **17 power-quality
+disturbance classes** from raw 100-sample voltage windows (one 50 Hz cycle at
+5 kHz). The project ships:
+
+- **Stage 1 threshold detector** — 5-feature O(N) check, **<1 ms per window**, decides Normal vs Abnormal
+- **Stage 2 Hybrid CNN + Random Forest** — 1D-CNN learns features from raw signal, RF classifies on the 64-dim CNN feature vector. **98.85 % test accuracy** across the 17 classes
+- **Live dashboard** (Chart.js + SocketIO) — waveform, spectrum, severity, top-K, latency timeline, event log; works against the live backend OR auto-falls-back to a built-in demo mode
+- **Flask + SocketIO backend** — `POST /api/predict`, `/api/pipeline_status`, SocketIO `predict`, plus a TCP listener on port 5555 for live signal streams
+- **SHAP explainability extension** — TreeExplainer wrapper, CLI / Flask `/explain` server, Node-RED flow JSON, 35 per-class beeswarm + bar plots
+- **CNN-vs-RF comparison study** — 4-row analysis (RF measured · 3 CNN scales: Lite measured + Standard/Heavy literature-projected) with apples-to-apples model-only inference times
+- **Legacy 6-model RF baseline** (the original project) — kept intact, ~90.6 % accuracy
+
+The repository is organized so the legacy RF pipeline still works untouched, and
+all new work lives alongside it without modifying the original.
 
 ---
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Features](#features)
-3. [Project Structure](#project-structure)
-4. [Disturbance Classes](#disturbance-classes)
-5. [Feature Extraction](#feature-extraction)
-6. [Model Performance](#model-performance)
-7. [Installation](#installation)
-8. [Quickstart](#quickstart)
-9. [Python API](#python-api)
-10. [Notebooks Guide](#notebooks-guide)
-11. [Dataset](#dataset)
-12. [Results & Artifacts](#results--artifacts)
-13. [Documentation](#documentation)
+1. [Quickstart](#quickstart)
+2. [Architecture](#architecture)
+3. [What's where in the repo](#whats-where-in-the-repo)
+4. [Headline numbers](#headline-numbers)
+5. [Disturbance classes](#disturbance-classes)
+6. [The 17-class 2-stage pipeline (this study)](#the-17-class-2-stage-pipeline-this-study)
+7. [Real-time backend + dashboard](#real-time-backend--dashboard)
+8. [Extensions](#extensions)
+   - [SHAP explainability](#shap-explainability)
+   - [CNN-vs-RF comparison](#cnn-vs-rf-comparison)
+9. [Legacy RF baseline (original project)](#legacy-rf-baseline-original-project)
+10. [Setup](#setup)
+11. [Documentation](#documentation)
+12. [License](#license)
 
 ---
 
-## Overview
+## Quickstart
 
-Power quality disturbances — voltage sags, swells, harmonics, transients, flicker, interruptions, and their combinations — cause equipment damage and financial losses in electrical systems. Manual identification is slow and error-prone.
+The fastest path to a working demo:
 
-This project automates disturbance classification with a fully reproducible ML pipeline:
+```cmd
+:: 1. Clone and enter the project
+git clone https://github.com/shrimathi-gopikrishnan/PQD-using-CNNRF.git
+cd PQD-using-CNNRF
+
+:: 2. Create the Python 3.12 virtual environment
+py -3.12 -m venv venv312
+
+:: 3. Install dependencies
+venv312\Scripts\python.exe -m pip install -r requirements.txt
+venv312\Scripts\python.exe -m pip install -r extensions\requirements.txt
+
+:: 4. One-click launcher: backend + dashboard + signal sender
+run.bat
+```
+
+That opens the backend in one console window, the live dashboard in your
+browser at `http://localhost:5000/dashboard`, and starts the synthetic signal
+sender in a second console window. Within ~5 seconds you'll see live
+classification on every panel.
+
+To stop: close the two console windows.
+
+---
+
+## Architecture
 
 ```
-Raw waveform signal (100 samples, one 20 ms cycle at 5 kHz)
-        │
-        ▼
-  Feature extraction (36 features across 3 domains)
-        │
-        ▼
-  Random Forest classifier (trained on 17,000 labeled signals)
-        │
-        ▼
-  Predicted class + Normal/Abnormal status + confidence score
+                                 ┌────────────────────┐
+                                 │  Live signal       │
+                                 │  (TCP / HTTP /     │
+                                 │   MATLAB sender)   │
+                                 └────────┬───────────┘
+                                          │  100 samples / 20 ms
+                                          ▼
+            ┌─────────────────────────────────────────────────────┐
+            │  STAGE 1 — Threshold detector  (< 1 ms)             │
+            │  RMS · THD · kurtosis · max-diff · qrms-std         │
+            │  All within bounds?  → Normal,  done                │
+            │  Any rule trips?     → escalate to Stage 2          │
+            └────────────────────┬────────────────────────────────┘
+                                 │
+                ┌────────────────┴────────────────┐
+            Normal                              Abnormal
+                │                                  │
+                ▼                                  ▼
+      Pure_Sinusoidal               ┌──────────────────────────┐
+      (no Stage 2 needed)           │ STAGE 2 — Hybrid CNN+RF  │
+                                    │ raw signal → 1D-CNN →    │
+                                    │ 64-d feature → RF → class│
+                                    │ ~67 ms per call          │
+                                    └─────────┬────────────────┘
+                                              ▼
+                                    Class + confidence + top-3
+                                    Knowledge-base lookup:
+                                       severity · cause ·
+                                       equipment at risk ·
+                                       immediate actions
+                                              │
+                                              ▼
+                                    Flask SocketIO emits
+                                       `pqd_result`
+                                              │
+                                              ▼
+                                    Live dashboard updates
+                                    (waveform, spectrum, KPIs,
+                                    top-K, severity, log, …)
 ```
 
 ---
 
-## Features
-
-- **17-class disturbance classification** including compound disturbances (e.g., Harmonics with Sag)
-- **36-feature multi-domain extraction**: time-domain, FFT frequency-domain, and DWT wavelet-domain
-- **Six ML models** trained and benchmarked side-by-side
-- **Trained model artifacts** saved as `.pkl` pipelines (StandardScaler + classifier) ready for inference
-- **Interactive Jupyter notebooks** guiding the full workflow from raw data to live demo
-- **Rich visualizations**: waveform galleries, confusion matrices, ROC curves, PCA/t-SNE, feature importance
-
----
-
-## Project Structure
+## What's where in the repo
 
 ```
 pqd-classification/
-├── README.md
-├── requirements.txt
 │
-├── dataset/
-│   ├── XPQRS/                        # Primary dataset (17 CSV files, 17,000 signals)
-│   │   ├── Pure_Sinusoidal.csv
-│   │   ├── Sag.csv
-│   │   ├── Swell.csv
-│   │   └── ...                       # (17 files total)
-│   ├── PQ Disturbances Dataset/      # Secondary dataset (pre-extracted wavelet features)
-│   ├── Power_Quality_Data.csv
-│   ├── Power_Quality_Dataset.csv
-│   └── PQD_Dataset.mat
+├── README.md                       <-- you are here
+├── requirements.txt                <-- main project deps (numpy/sklearn/etc.)
+├── run.bat                         <-- one-click launcher (backend + dashboard + sender)
 │
-├── src/
-│   ├── data_loader.py                # Load XPQRS CSVs → NumPy arrays
-│   ├── feature_extractor.py          # Extract 36 features per signal
-│   ├── predictor.py                  # Load model, predict single / batch signals
-│   └── visualization.py             # Plotting utilities
+├── backend/                        <-- 2-stage pipeline + live server
+│   ├── stage1_threshold.py         <-- 5-feature O(N) threshold detector
+│   ├── train_hybrid_cnnrf.py       <-- trains 1D-CNN + RF, saves all 4 artifacts
+│   ├── pipeline_2stage.py          <-- Stage 1 → Stage 2 dispatcher + 17-class KB
+│   ├── app.py                      <-- Flask + SocketIO + TCP server (5000 + 5555)
+│   ├── tune_hybrid_rf.py           <-- GridSearchCV over RF hyperparameters
+│   ├── confusion_matrix.py         <-- per-class metrics + heatmap
+│   ├── hybrid_cnn_extractor.h5     <-- trained CNN feature extractor
+│   ├── hybrid_rf.pkl               <-- trained RF on CNN features
+│   ├── hybrid_label_encoder.pkl
+│   ├── hybrid_xscale.npy           <-- global normalization scale
+│   ├── RESULTS.md                  <-- 98.85 % accuracy, normalization-fix story
+│   ├── RESULTS_tuning.md           <-- 120-fit grid-search proves hyperparam choice
+│   └── RESULTS_confusion.md        <-- per-class table, 13 of 17 classes at 100 %
 │
-├── notebooks/
+├── dashboard/
+│   └── index.html                  <-- single-file dark-theme dashboard
+│
+├── tools/
+│   └── python_sender.py            <-- TCP signal streamer (Python — no MATLAB needed)
+│
+├── matlab/
+│   └── realtime_sender.m           <-- TCP signal streamer (MATLAB version)
+│
+├── extensions/                     <-- read-only add-ons; main project untouched
+│   ├── requirements.txt            <-- shap, torch, etc.
+│   ├── _shim/                      <-- adds main project src/ to sys.path
+│   │
+│   ├── shap_explainability/
+│   │   ├── shap_wrapper.py
+│   │   ├── explain_cli.py          <-- python explain_cli.py --class Sag
+│   │   ├── explain_server.py       <-- Flask /explain endpoint on port 5600
+│   │   ├── benchmark_latency.py
+│   │   ├── generate_global_plots.py<-- 35 per-class beeswarm + bar PNGs
+│   │   ├── node_red/
+│   │   │   └── shap_explanation_flow.json
+│   │   ├── results/latency.csv
+│   │   └── figures/                <-- 35 SHAP plots
+│   │
+│   └── cnn_comparison/
+│       ├── cnn_model.py            <-- PQDCNNLite, PQDCNNStandard, PQDCNNHeavy
+│       ├── architecture.md         <-- architecture writeup
+│       ├── train_cnn.py            <-- trains Lite (~3 min on CPU)
+│       ├── evaluate_both.py        <-- 4-row comparison + headline figure
+│       ├── benchmark_rpi4.py       <-- runnable on a Pi if/when available
+│       ├── run_comparison.py       <-- end-to-end reproducer
+│       ├── models/cnn1d.pt
+│       ├── results/
+│       │   ├── RESULTS.md          <-- 4-row tradeoff analysis
+│       │   ├── results.csv
+│       │   ├── cm_*.csv
+│       │   └── training_history.json
+│       └── figures/
+│           ├── accuracy_vs_latency.png
+│           ├── cm_rf.png / cm_cnn.png
+│           └── training_curves.png
+│
+├── src/                            <-- LEGACY pipeline (untouched)
+│   ├── data_loader.py
+│   ├── feature_extractor.py        <-- 36 handcrafted features
+│   ├── predictor.py
+│   └── visualization.py
+│
+├── notebooks/                      <-- LEGACY workflow (1-6, untouched)
 │   ├── 01_data_loading_exploration.ipynb
 │   ├── 02_signal_visualization.ipynb
 │   ├── 03_feature_extraction.ipynb
@@ -86,26 +191,41 @@ pqd-classification/
 │   ├── 05_results_comparison.ipynb
 │   └── 06_live_demo.ipynb
 │
-├── results/
-│   ├── models/                       # Trained .pkl pipelines
-│   │   ├── xpqrs_random_forest.pkl   # Deployed model
-│   │   ├── xpqrs_gradient_boosting.pkl
-│   │   └── ...
-│   ├── figures/                      # Generated plots (PNG)
-│   └── tables/                       # CSV result tables
+├── results/                        <-- LEGACY artifacts (untouched)
+│   ├── models/                     <-- 12 sklearn .pkl pipelines
+│   ├── figures/                    <-- legacy plots + new confusion_matrix_hybrid.png
+│   └── tables/                     <-- legacy CSVs
 │
-└── docs/                             # Detailed written documentation
+├── dataset/
+│   ├── XPQRS/                      <-- 17 CSV files, 17 000 raw waveform signals
+│   └── PQ Disturbances Dataset/    <-- secondary dataset (pre-extracted features)
+│
+└── docs/                           <-- 14 markdown docs (legacy 01-06 + new 07-14)
     ├── 01_input_signal_explained.md
-    ├── 02_feature_extraction.md
-    ├── 03_project_flow.md
-    ├── 04_model_training.md
-    ├── 05_prediction_and_output.md
-    └── 06_live_demo_explained.md
+    ├── …                           
+    └── 14_running_the_full_system.md
 ```
 
 ---
 
-## Disturbance Classes
+## Headline numbers
+
+| Component | Metric | Value |
+|---|---|---:|
+| Hybrid CNN+RF (Stage 2) | Test accuracy on 3 400 held-out signals | **98.85 %** |
+| Hybrid CNN+RF | Per-class accuracy (13 of 17 classes) | **100.00 %** |
+| Stage 1 threshold detector | Normal-detection rate | **100 %** |
+| Stage 1 threshold detector | False-alarm rate | **0 %** |
+| Stage 1 threshold detector | Mean latency | **<1 ms** |
+| Stage 2 (CNN forward + RF predict) | Mean latency, single-thread CPU | **~67 ms** |
+| End-to-end pipeline (mixed traffic) | Accuracy | **96.67 %** |
+| Legacy single-stage RF (`xpqrs_random_forest.pkl`) | Test accuracy | 90.62 % |
+| RF hyperparameter grid search | Combinations evaluated | 120 (24 × 5-fold) |
+| RF tuning verdict | Top-13 configs cluster within | ±0.05 pp (saturated) |
+
+---
+
+## Disturbance classes
 
 The model classifies signals into **17 classes** — 1 normal and 16 disturbance types:
 
@@ -120,343 +240,254 @@ The model classifies signals into **17 classes** — 1 normal and 16 disturbance
 | 7 | `Harmonics` | Harmonic distortion |
 | 8 | `Notch` | Voltage notching |
 | 9 | `Flicker` | Voltage flicker |
-| 10 | `Harmonics_with_Sag` | Compound: harmonics + sag |
-| 11 | `Harmonics_with_Swell` | Compound: harmonics + swell |
-| 12 | `Sag_with_Harmonics` | Compound: sag + harmonics |
-| 13 | `Swell_with_Harmonics` | Compound: swell + harmonics |
-| 14 | `Flicker_with_Sag` | Compound: flicker + sag |
-| 15 | `Flicker_with_Swell` | Compound: flicker + swell |
-| 16 | `Sag_with_Oscillatory_Transient` | Compound: sag + oscillatory transient |
-| 17 | `Swell_with_Oscillatory_Transient` | Compound: swell + oscillatory transient |
+| 10–17 | Compound disturbances | Sag/Swell/Harmonics/Flicker × Harmonics/Flicker/Oscillatory |
 
-Each signal is also tagged as **Normal** (`Pure_Sinusoidal`) or **Abnormal** (any other class).
+Each prediction is also tagged **Normal** (Pure_Sinusoidal) or **Abnormal** (any other class), with a severity rating (`none / low / medium / high / critical`) and equipment-at-risk metadata pulled from a built-in 17-entry knowledge base.
 
 ---
 
-## Feature Extraction
+## The 17-class 2-stage pipeline (this study)
 
-Each raw waveform (100 samples) is transformed into a **36-element feature vector** across three domains:
+### Stage 1 — Threshold detector ([backend/stage1_threshold.py](backend/stage1_threshold.py))
 
-### Time-Domain Features (14)
+A rule-based binary classifier (Normal vs Abnormal) using **5 cheap features**:
 
-| Feature | Description |
-|---------|-------------|
-| `mean` | Signal mean |
-| `std` | Standard deviation |
-| `rms` | Root mean square |
-| `peak` | Maximum absolute amplitude |
-| `crest_factor` | Peak / RMS |
-| `skewness` | Third statistical moment |
-| `kurtosis` | Fourth statistical moment |
-| `zero_crossing_rate` | Rate of sign changes |
-| `peak_to_peak` | Max − Min amplitude |
-| `form_factor` | RMS / Mean absolute |
-| `energy` | Sum of squared samples |
-| `waveform_length` | Sum of absolute differences |
-| `iqr` | Interquartile range (Q75 − Q25) |
-| `entropy` | Shannon entropy of amplitude histogram |
+| Feature | Threshold | Catches |
+|---|---|---|
+| RMS | < 0.65 or > 0.78 pu | Sag, Swell, Interruption |
+| THD-approx (h2/h3/h5) | > 0.025 | Harmonics |
+| Kurtosis | > 2.5 | Sharp impulsive transients |
+| Max consecutive-sample diff | > 0.15 pu | Notch, Oscillatory transient |
+| Quarter-window RMS std | > 0.020 | Flicker (envelope drift) |
 
-### Frequency-Domain / FFT Features (10)
+All five features are O(N) with N=100 → total Stage 1 cost is well under 1 ms.
+On 510 balanced test signals: **100 % normal-detection, 0 % false-alarm, 96.67 % end-to-end pipeline accuracy** (Stage 1 misses fall through to Stage 2).
 
-Computed from the magnitude spectrum via `np.fft.rfft`:
+### Stage 2 — Hybrid CNN + Random Forest ([backend/train_hybrid_cnnrf.py](backend/train_hybrid_cnnrf.py))
 
-| Feature | Description |
-|---------|-------------|
-| `fft_mean` | Mean of FFT magnitudes |
-| `fft_std` | Std of FFT magnitudes |
-| `fft_max` | Peak FFT magnitude |
-| `fft_dominant_freq` | Frequency bin of peak magnitude |
-| `fft_spectral_centroid` | Weighted mean frequency |
-| `fft_spectral_spread` | Weighted std of frequency |
-| `fft_thd` | Total harmonic distortion (harmonics 2–5) |
-| `fft_fundamental_amp` | Amplitude at 50 Hz |
-| `fft_harmonic_ratio` | Harmonics energy / total energy |
-| `fft_energy` | Total spectral energy |
+```
+raw 100-sample signal
+   ↓  global max-abs normalization (scale = 2.0535, saved to xscale.npy)
+1D-CNN (3 conv blocks → GAP → Dense(128) → Dense(64))
+   ↓  64-dim learned feature vector
+Random Forest (200 trees, max_features=log2)
+   ↓
+17-class logits + confidence
+```
 
-### Wavelet-Domain / DWT Features (12)
+**Training**: 17 000 IEEE 1159 synthetic signals + AWGN at 40 dB SNR, 80/20 stratified split (seed=42), Adam(1e-3), EarlyStopping(val_acc, patience=10, restore best). Final test accuracy: **98.85 %**.
 
-Computed using **db4 wavelet**, 3-level decomposition via PyWavelets:
+> **Key finding**: with the originally-spec'd per-sample max-abs normalization, accuracy collapsed to **52 %** — because Sag, Swell, and Interruption all become unit-amplitude sines when each signal is divided by its own peak. Switching to a single global scale recovered the 47 pp gap. See [backend/RESULTS.md](backend/RESULTS.md) for the full story.
 
-| Feature | Description |
-|---------|-------------|
-| `wavelet_cA3_energy` | Approximation (level 3) energy |
-| `wavelet_cD1_energy` | Detail level 1 energy |
-| `wavelet_cD2_energy` | Detail level 2 energy |
-| `wavelet_cD3_energy` | Detail level 3 energy |
-| `wavelet_cA3_std` | Approximation std |
-| `wavelet_cD1_std` | Detail 1 std |
-| `wavelet_cD2_std` | Detail 2 std |
-| `wavelet_cD3_std` | Detail 3 std |
-| `wavelet_cA3_mean_abs` | Approximation mean absolute |
-| `wavelet_cD1_mean_abs` | Detail 1 mean absolute |
-| `wavelet_cD2_mean_abs` | Detail 2 mean absolute |
-| `wavelet_energy_ratio` | cD1 energy / total wavelet energy |
+### Knowledge-base enrichment ([backend/pipeline_2stage.py](backend/pipeline_2stage.py))
+
+Each Abnormal prediction is augmented with:
+
+- `display_name` — human-readable class name
+- `severity` — `none` / `low` / `medium` / `high` / `critical`
+- `cause` — 2-sentence physical explanation
+- `equipment_at_risk` — what's affected
+- `immediate_actions` — 3–5 actionable steps
+
+All 17 entries are technically grounded (sourced from IEEE Std 1159-2019).
 
 ---
 
-## Model Performance
+## Real-time backend + dashboard
 
-All models trained on the XPQRS dataset (17,000 signals), evaluated on a held-out 20% test split with 5-fold cross-validation:
+### Backend ([backend/app.py](backend/app.py))
+
+A Flask + Flask-SocketIO server with three input paths and one output:
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/dashboard` | GET | Serves the live dashboard (same-origin → no CORS issues) |
+| `/api/pipeline_status` | GET | Reports which inference path is live |
+| `/api/predict` | POST | JSON `{signal:[100 floats]}` → full result dict |
+| `predict` (SocketIO) | event | Same as POST `/api/predict` but via WebSocket |
+| TCP `:5555` | newline-JSON | Streams results as `pqd_result` SocketIO events to all dashboard clients |
+
+The TCP listener accepts `{"label": "...", "signal": [v0..v99], "window": N}\n` frames at any rate and broadcasts each prediction to every connected dashboard. Designed for **live MATLAB/Python sender → backend → browser** without modifying any existing component.
+
+### Dashboard ([dashboard/index.html](dashboard/index.html))
+
+Single-file HTML/CSS/JS dashboard, ~60 KB, only external dependencies are Chart.js and Socket.IO from public CDNs. Six panels:
+
+1. **Live waveform** (Chart.js line chart) + tabbed FFT spectrum view
+2. **Signal parameters** (RMS, THD, crest factor, peak — color-coded gauges)
+3. **Classification card** — severity badge (gradient, pulses on critical), disturbance name, confidence bar, top-3 predictions
+4. **Cause + equipment-at-risk** — KB-driven informational card
+5. **Immediate actions** — numbered list of 3–5 guidance items
+6. **System stats** + class-distribution donut + latency timeline + event log
+
+Plus a top **KPI strip**: frames received, Stage 1 time, Stage 2 time, Stage 2 accuracy. **Demo mode** auto-activates if the backend isn't reachable in 3 s — every panel still updates from synthetic signals so the UI demos cleanly with zero backend.
+
+### Senders
+
+| Tool | Purpose | When |
+|---|---|---|
+| [tools/python_sender.py](tools/python_sender.py) | Python TCP streamer with realistic IEEE 1159 synthesis + AWGN | When you don't have MATLAB |
+| [matlab/realtime_sender.m](matlab/realtime_sender.m) | MATLAB equivalent | If you do |
+
+Both stream newline-delimited JSON to TCP `:5555`, cycle through all 17 classes, configurable hold-per-class and frame rate.
+
+---
+
+## Extensions
+
+Both extensions are **read-only** with respect to the main project — they
+import the legacy RF and feature extractor but never modify anything outside
+`extensions/`. They live alongside the main project, not on top of it.
+
+### SHAP explainability
+
+[extensions/shap_explainability/](extensions/shap_explainability/)
+
+For any single prediction from the legacy RF (`xpqrs_random_forest.pkl`), returns:
+
+- Predicted class + confidence
+- **Top-3 features that drove the decision**, each with its raw physical value (RMS in pu, THD in %, etc.) and SHAP magnitude/direction
+- Human-readable summary sentence
+
+Three ways to use it:
+
+```cmd
+:: 1. CLI
+venv312\Scripts\python.exe extensions\shap_explainability\explain_cli.py --class Sag --seed 42
+
+:: 2. Flask /explain endpoint (default port 5600)
+venv312\Scripts\python.exe extensions\shap_explainability\explain_server.py
+:: then: curl -X POST -H "Content-Type: application/json" -d @signal.json http://localhost:5600/explain
+
+:: 3. Generate paper-ready SHAP plots (35 PNGs: 17 beeswarm + 17 bar + 1 global)
+venv312\Scripts\python.exe extensions\shap_explainability\generate_global_plots.py
+```
+
+Plus a self-contained Node-RED flow at [extensions/shap_explainability/node_red/shap_explanation_flow.json](extensions/shap_explainability/node_red/shap_explanation_flow.json) that calls `/explain` and renders a styled explanation card (independent of the main dashboard).
+
+### CNN-vs-RF comparison
+
+[extensions/cnn_comparison/](extensions/cnn_comparison/)
+
+Three 1D-CNN architectures benchmarked against the legacy RF on the **same XPQRS test set** (3 400 signals, seed=42):
+
+| Model | Params | Latency p50 | Test acc | Basis |
+|---|---:|---:|---:|---|
+| RF — full pipeline | 232 K nodes | 36.96 ms | 90.62 % | measured |
+| RF — predict alone | 232 K nodes | 28.33 ms | 90.62 % | measured (apples-to-apples vs CNN) |
+| **PQD-CNN-Lite** | 9 K | **1.27 ms** | 89.74 % | measured |
+| **PQD-CNN-Standard** | 734 K | 2.70 ms | ~95.5 % | latency measured · accuracy projected from literature |
+| **PQD-CNN-Heavy** | 5.4 M | 7.40 ms | ~96.5 % | latency measured · accuracy projected |
+
+Headline figure: [extensions/cnn_comparison/figures/accuracy_vs_latency.png](extensions/cnn_comparison/figures/accuracy_vs_latency.png)
+
+Full writeup with methodology, FLOPs analysis, per-class P/R/F1, confusion matrices, and explicit caveats: [extensions/cnn_comparison/results/RESULTS.md](extensions/cnn_comparison/results/RESULTS.md)
+
+---
+
+## Legacy RF baseline (original project)
+
+The original 6-model study from `notebooks/04_model_training_evaluation.ipynb` is preserved untouched. It evaluates 6 sklearn classifiers on the XPQRS dataset with 5-fold CV + 80/20 holdout:
 
 | Model | CV Accuracy | Test Accuracy | Test F1 (Macro) |
-|-------|-------------|---------------|-----------------|
-| **Gradient Boosting** | 90.65 ± 0.63% | **91.12%** | **0.9107** |
-| **Random Forest** *(deployed)* | 89.72 ± 0.43% | **90.62%** | **0.9056** |
-| Decision Tree | 85.45 ± 0.97% | 86.50% | 0.8646 |
-| Logistic Regression | 84.17 ± 0.56% | 85.24% | 0.8489 |
-| SVM | 81.90 ± 0.46% | 83.35% | 0.8298 |
-| KNN | 79.21 ± 0.77% | 80.06% | 0.7955 |
+|---|---|---|---|
+| **Gradient Boosting** | 90.65 ± 0.63 % | 91.12 % | 0.9107 |
+| **Random Forest** *(deployed)* | 89.72 ± 0.43 % | 90.62 % | 0.9056 |
+| Decision Tree | 85.45 ± 0.97 % | 86.50 % | 0.8646 |
+| Logistic Regression | 84.17 ± 0.56 % | 85.24 % | 0.8489 |
+| SVM | 81.90 ± 0.46 % | 83.35 % | 0.8298 |
+| KNN | 79.21 ± 0.77 % | 80.06 % | 0.7955 |
 
-Random Forest is deployed as the primary model due to its strong balance of accuracy, inference speed, and interpretability (feature importance).
+Each model is a sklearn `Pipeline(StandardScaler, classifier)` over the 36-feature vector defined in [src/feature_extractor.py](src/feature_extractor.py). Saved as `.pkl` files in [results/models/](results/models/).
+
+The legacy pipeline is what the SHAP extension explains, what the CNN-comparison extension benchmarks against, and what the backend's per-call fallback uses if the hybrid Stage 2 isn't loaded.
 
 ---
 
-## Installation
+## Setup
 
 ### Prerequisites
 
-- Python 3.9+
-- pip
+- **Python 3.12** (TensorFlow doesn't support 3.13/3.14 yet — use the `py -3.12` launcher to create the venv)
+- **Git** — to clone
 
 ### Steps
 
-```bash
-# 1. Clone the repository
-git clone <repository-url>
-cd pqd-classification
+```cmd
+:: clone
+git clone https://github.com/shrimathi-gopikrishnan/PQD-using-CNNRF.git
+cd PQD-using-CNNRF
 
-# 2. Create a virtual environment (recommended)
-python3 -m venv .venv
-source .venv/bin/activate
+:: create venv (Python 3.12 specifically)
+py -3.12 -m venv venv312
 
-# 3. Install dependencies
-pip install -r requirements.txt
+:: install main project deps + extension deps
+venv312\Scripts\python.exe -m pip install -r requirements.txt
+venv312\Scripts\python.exe -m pip install -r extensions\requirements.txt
+
+:: launch everything (backend + dashboard + signal sender)
+run.bat
 ```
 
-### Dependencies
+If you don't have Python 3.12, install it via:
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `numpy` | ≥1.24 | Signal arrays and math |
-| `pandas` | ≥2.0 | Data loading and tables |
-| `scipy` | ≥1.10 | Statistics (skew, kurtosis) |
-| `scikit-learn` | ≥1.3 | ML models and pipelines |
-| `PyWavelets` | ≥1.4 | DWT feature extraction |
-| `matplotlib` | ≥3.7 | Plotting |
-| `seaborn` | ≥0.12 | Statistical visualizations |
-| `joblib` | ≥1.3 | Model serialization |
-| `jupyter` | ≥1.0 | Interactive notebooks |
-| `openpyxl` | ≥3.1 | Reading Excel datasets |
-
----
-
-## Quickstart
-
-Run the full pipeline end-to-end by executing the notebooks in order:
-
-```bash
-jupyter notebook
+```cmd
+winget install Python.Python.3.12
 ```
 
-Then open and run notebooks **01 → 06** sequentially (see [Notebooks Guide](#notebooks-guide)).
+### Re-train the hybrid model from scratch
 
-To use the trained model directly:
+Optional — the trained artifacts are already in `backend/`. To rebuild:
 
-```python
-import numpy as np
-import sys
-sys.path.insert(0, 'src')
-
-from predictor import predict_signal
-
-# Example: load a signal from the XPQRS dataset
-import pandas as pd
-signal = pd.read_csv('dataset/XPQRS/Sag.csv', header=None).values[0]
-
-result = predict_signal(signal)
-print(result['status'])            # "Abnormal"
-print(result['disturbance_type']) # "Sag"
-print(f"{result['confidence']:.1%}")  # e.g. "94.0%"
+```cmd
+venv312\Scripts\python.exe backend\train_hybrid_cnnrf.py
 ```
 
----
+Runs ~5–10 min on a desktop CPU; produces all 4 hybrid artifacts.
 
-## Python API
+### Hyperparameter sweep
 
-### `src/data_loader.py`
-
-```python
-from data_loader import load_xpqrs, load_xpqrs_as_dataframe
-
-# Returns NumPy arrays
-signals, labels = load_xpqrs('dataset/XPQRS')
-# signals.shape → (17000, 100)
-# labels.shape  → (17000,)
-
-# Returns a DataFrame with columns s_0 … s_99 + 'label'
-df = load_xpqrs_as_dataframe('dataset/XPQRS')
+```cmd
+venv312\Scripts\python.exe backend\tune_hybrid_rf.py
 ```
 
-### `src/feature_extractor.py`
+Runs 120 RF fits (24 combos × 5-fold), ~5 minutes, writes [backend/RESULTS_tuning.md](backend/RESULTS_tuning.md).
 
-```python
-from feature_extractor import extract_all_features, extract_features_batch, ALL_FEATURE_NAMES
+### Refresh CNN-vs-RF comparison
 
-# Single signal → 36-element dict
-signal = signals[0]                    # shape (100,)
-features = extract_all_features(signal)
-print(len(features))                   # 36
-
-# Batch → DataFrame with 36 feature columns
-feature_df = extract_features_batch(signals)
-# feature_df.shape → (17000, 36)
-
-print(ALL_FEATURE_NAMES)               # list of 36 feature names
+```cmd
+venv312\Scripts\python.exe extensions\cnn_comparison\evaluate_both.py
 ```
 
-### `src/predictor.py`
-
-```python
-from predictor import predict_signal, predict_batch, load_model
-
-# Single prediction
-result = predict_signal(signal)
-# result = {
-#   'status': 'Abnormal',
-#   'disturbance_type': 'Harmonics',
-#   'confidence': 0.87,
-#   'all_probabilities': {'Flicker': 0.01, 'Harmonics': 0.87, ...}
-# }
-
-# Batch prediction
-results = predict_batch(signals[:50])
-# results → list of 50 dicts
-
-# Load a different model
-load_model('results/models/xpqrs_gradient_boosting.pkl')
-result = predict_signal(signal)
-```
-
-### `src/visualization.py`
-
-```python
-from visualization import (
-    plot_signal,
-    plot_waveform_gallery,
-    plot_confusion_matrix,
-    plot_feature_importance,
-)
-
-plot_signal(signal, label='Sag', sampling_rate=5000)
-plot_waveform_gallery(signals, labels, n_per_class=3)
-```
-
----
-
-## Notebooks Guide
-
-| Notebook | Description |
-|----------|-------------|
-| `01_data_loading_exploration.ipynb` | Load all 17 CSV files, inspect shapes, class distribution, basic statistics |
-| `02_signal_visualization.ipynb` | Waveform gallery, disturbance vs. reference comparison, FFT spectrum plots |
-| `03_feature_extraction.ipynb` | Extract 36 features, correlation matrix, feature distributions by domain, PCA/t-SNE |
-| `04_model_training_evaluation.ipynb` | Train and evaluate all 6 models, confusion matrices, ROC curves, cross-validation |
-| `05_results_comparison.ipynb` | Side-by-side model comparison, feature importance, final summary table |
-| `06_live_demo.ipynb` | Interactive prediction demo — paste or generate a signal and classify in real time |
-
-Run them in order (01 → 04) to reproduce all results. Notebooks 05 and 06 can be run independently once models are trained.
-
----
-
-## Dataset
-
-### XPQRS Dataset (Primary)
-
-Located in `dataset/XPQRS/`. Contains **17,000 synthetic waveform signals** — 1,000 per disturbance class.
-
-| Property | Value |
-|----------|-------|
-| Signal length | 100 samples |
-| Sampling rate | 5,000 Hz |
-| Fundamental frequency | 50 Hz |
-| Duration per signal | 20 ms (1 cycle) |
-| Number of classes | 17 |
-| Signals per class | 1,000 |
-| Total signals | 17,000 |
-| Format | CSV (one signal per row, no header) |
-
-### PQ Disturbances Dataset (Secondary)
-
-Located in `dataset/PQ Disturbances Dataset/`. Contains pre-extracted wavelet features in Excel format across 13 disturbance types. Used in the `pq_disturbances_*` models.
-
----
-
-## Results & Artifacts
-
-### Trained Models (`results/models/`)
-
-| File | Description |
-|------|-------------|
-| `xpqrs_random_forest.pkl` | **Deployed model** — StandardScaler + Random Forest |
-| `xpqrs_gradient_boosting.pkl` | Best accuracy model |
-| `xpqrs_decision_tree.pkl` | Interpretable baseline |
-| `xpqrs_logistic_regression.pkl` | Linear baseline |
-| `xpqrs_svm.pkl` | SVM baseline |
-| `xpqrs_knn.pkl` | KNN baseline |
-
-All `.pkl` files are scikit-learn `Pipeline` objects loadable with `joblib.load()`.
-
-### Result Tables (`results/tables/`)
-
-| File | Description |
-|------|-------------|
-| `xpqrs_model_results.csv` | CV accuracy, test accuracy, F1, precision, recall for all models |
-| `xpqrs_features.csv` | Extracted feature matrix (17,000 × 36) |
-| `pq_model_results.csv` | Results on the secondary PQ Disturbances dataset |
-| `pq_features.csv` | Feature matrix for the secondary dataset |
-| `final_comparison.csv` | Cross-dataset comparison summary |
-
-### Figures (`results/figures/`)
-
-| File | Description |
-|------|-------------|
-| `xpqrs_waveform_gallery.png` | All 17 class waveforms |
-| `xpqrs_cm_random_forest.png` | Random Forest confusion matrix |
-| `xpqrs_cm_gradient_boosting.png` | Gradient Boosting confusion matrix |
-| `xpqrs_model_accuracy.png` | Model accuracy comparison bar chart |
-| `xpqrs_f1_heatmap.png` | Per-class F1 scores heatmap |
-| `feature_importance_rf.png` | Top feature importances (Random Forest) |
-| `pca_xpqrs.png` | PCA 2D projection of feature space |
-| `tsne_xpqrs.png` | t-SNE 2D projection |
-| `roc_curves.png` | One-vs-rest ROC curves for all classes |
-| `fft_spectrum_comparison.png` | FFT spectra across disturbance types |
+Re-runs the head-to-head, regenerates the headline scatter and `RESULTS.md`.
 
 ---
 
 ## Documentation
 
-Detailed explanations of each project component are in the `docs/` folder:
+Detailed docs in [docs/](docs/):
 
 | File | Topic |
-|------|-------|
+|---|---|
 | [01_input_signal_explained.md](docs/01_input_signal_explained.md) | What a raw PQD signal is and how it is structured |
-| [02_feature_extraction.md](docs/02_feature_extraction.md) | In-depth walkthrough of all 36 features |
-| [03_project_flow.md](docs/03_project_flow.md) | End-to-end pipeline: training and prediction phases |
-| [04_model_training.md](docs/04_model_training.md) | Model selection, hyperparameters, and evaluation strategy |
-| [05_prediction_and_output.md](docs/05_prediction_and_output.md) | Understanding prediction output fields |
-| [06_live_demo_explained.md](docs/06_live_demo_explained.md) | How the interactive demo notebook works |
+| [02_feature_extraction.md](docs/02_feature_extraction.md) | The 36 handcrafted features (RF baseline) |
+| [03_project_flow.md](docs/03_project_flow.md) | Original training + prediction phases |
+| [04_model_training.md](docs/04_model_training.md) | Legacy 6-model selection + evaluation |
+| [05_prediction_and_output.md](docs/05_prediction_and_output.md) | Prediction output schema |
+| [06_live_demo_explained.md](docs/06_live_demo_explained.md) | Notebook 06 demo walkthrough |
+| [07_2stage_pipeline.md](docs/07_2stage_pipeline.md) | The Stage 1 + Stage 2 architecture |
+| [08_hybrid_cnn_rf_model.md](docs/08_hybrid_cnn_rf_model.md) | 1D-CNN feature extractor + RF combination |
+| [09_realtime_backend.md](docs/09_realtime_backend.md) | Flask + SocketIO + TCP server |
+| [10_signal_senders.md](docs/10_signal_senders.md) | Python and MATLAB streamers |
+| [11_live_dashboard.md](docs/11_live_dashboard.md) | Dashboard panels and demo mode |
+| [12_shap_explainability.md](docs/12_shap_explainability.md) | SHAP extension walkthrough |
+| [13_cnn_comparison.md](docs/13_cnn_comparison.md) | RF vs CNN tradeoff study |
+| [14_running_the_full_system.md](docs/14_running_the_full_system.md) | End-to-end run guide |
 
----
-
-## Contributing
-
-1. Fork the repository and create a feature branch.
-2. Keep new features focused — one PR per concern.
-3. Add or update the relevant notebook if you change the pipeline.
-4. Ensure `requirements.txt` stays minimal and pinned to minimum versions.
+Plus the per-component RESULTS files under `backend/` and `extensions/.../results/` referenced throughout this README.
 
 ---
 
 ## License
 
-This project is for research and educational purposes. Dataset credits go to the original XPQRS dataset authors.
+This project is for research and educational purposes. The original XPQRS dataset is sourced from the public IEEE 1159 power-quality reference dataset; credits go to the original authors.
