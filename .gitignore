@@ -29,7 +29,11 @@ Thumbs.db
 desktop.ini
 
 # ─── Editors / IDEs ───────────────────────────────────────────────────────
-.vscode/
+# Track .vscode/settings.json + extensions.json (shared workspace config),
+# ignore the rest (per-user preferences, debug profiles, etc.)
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo

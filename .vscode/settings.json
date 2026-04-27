@@ -1,0 +1,37 @@
+{
+    // ── Source Control panel: untracked files in their own collapsed group
+    //    (so new files are still visible — just not mixed in with the 10k+
+    //    venv noise that VS Code was previously listing) ──
+    "git.untrackedChanges": "separateGroup",
+
+    // ── File watcher: don't index venv / caches / git internals (huge speedup) ──
+    "files.watcherExclude": {
+        "**/venv*/**": true,
+        "**/.venv/**": true,
+        "**/__pycache__/**": true,
+        "**/.git/**": true,
+        "**/.ipynb_checkpoints/**": true,
+        "**/node_modules/**": true
+    },
+
+    // ── File explorer: hide noise so the tree is readable ──
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/*.pyc": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true
+    },
+
+    // ── Search: skip venv + caches ──
+    "search.exclude": {
+        "**/venv*/**": true,
+        "**/.venv/**": true,
+        "**/__pycache__/**": true,
+        "**/.git/**": true,
+        "**/dataset/**": true
+    },
+
+    // ── Python interpreter for this workspace ──
+    "python.defaultInterpreterPath": "${workspaceFolder}/venv312/Scripts/python.exe"
+}
