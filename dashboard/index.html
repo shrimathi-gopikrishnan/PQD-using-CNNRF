@@ -1,0 +1,1379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PQD Real-Time Monitor</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
+
+<style>
+:root {
+  --bg-1:        #07090f;
+  --bg-2:        #0d1118;
+  --card:        rgba(22, 26, 38, 0.72);
+  --card-solid:  #161a26;
+  --card-2:      #11141d;
+  --border:      rgba(78, 89, 119, 0.18);
+  --border-hi:   rgba(139, 92, 246, 0.42);
+  --text:        #e7ecf6;
+  --text-soft:   #b6bfd0;
+  --muted:       #6b7589;
+  --green:       #22c55e;
+  --green-dim:   rgba(34, 197, 94, 0.16);
+  --red:         #ef4444;
+  --red-dim:     rgba(239, 68, 68, 0.16);
+  --amber:       #f59e0b;
+  --amber-dim:   rgba(245, 158, 11, 0.16);
+  --blue:        #3b82f6;
+  --blue-dim:    rgba(59, 130, 246, 0.16);
+  --purple:      #8b5cf6;
+  --purple-dim:  rgba(139, 92, 246, 0.16);
+  --darkred:     #b91c1c;
+  --grad-accent: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
+  --grad-bg:     radial-gradient(1200px 600px at 10% -10%, rgba(139,92,246,0.10), transparent 60%),
+                 radial-gradient(900px 500px at 95% 0%, rgba(59,130,246,0.10), transparent 55%),
+                 linear-gradient(180deg, #07090f 0%, #0d1118 100%);
+  --shadow:      0 8px 24px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.03) inset;
+  --shadow-lg:   0 14px 40px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.04) inset;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  min-height: 100vh;
+  background: var(--grad-bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* ── Top bar ───────────────────────────────────────────────────────────── */
+.topbar {
+  position: sticky; top: 0; z-index: 30;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 24px;
+  background: rgba(13, 17, 24, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.brand {
+  display: flex; align-items: center; gap: 12px;
+}
+.brand .logo {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  background: var(--grad-accent);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);
+}
+.brand .logo svg { width: 22px; height: 22px; color: white; }
+.brand .title {
+  display: flex; flex-direction: column; line-height: 1.15;
+}
+.brand .title .name {
+  font-size: 16px; font-weight: 700; letter-spacing: 0.2px;
+}
+.brand .title .sub {
+  font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* Inline KPI strip */
+.kpis {
+  display: flex; gap: 22px; justify-content: center; flex-wrap: wrap;
+}
+.kpi {
+  display: flex; flex-direction: column; align-items: flex-start;
+  padding: 4px 12px;
+  border-left: 2px solid var(--border);
+}
+.kpi .lbl {
+  font-size: 10px; color: var(--muted); letter-spacing: 0.6px;
+  text-transform: uppercase; font-weight: 600;
+}
+.kpi .val {
+  font-size: 18px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1.1;
+}
+.kpi .val .unit { font-size: 11px; color: var(--muted); margin-left: 3px; font-weight: 500; }
+
+/* Right cluster */
+.right-cluster { display: flex; align-items: center; gap: 16px; }
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.icon-btn:hover { color: var(--text); background: rgba(139,92,246,0.10); border-color: var(--border-hi); }
+.icon-btn svg { width: 16px; height: 16px; }
+.icon-btn.active { color: var(--purple); border-color: var(--border-hi); }
+.conn {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  font-size: 12px; font-weight: 600;
+  color: var(--text-soft);
+}
+.conn .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 0 rgba(0,0,0,0);
+}
+.conn.live .dot {
+  background: var(--green);
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+.conn.live { color: var(--green); border-color: rgba(34,197,94,0.35); }
+.conn.demo .dot { background: var(--amber); }
+.conn.demo { color: var(--amber); border-color: rgba(245,158,11,0.35); }
+@keyframes pulse-dot {
+  0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
+  50%     { box-shadow: 0 0 0 7px rgba(34,197,94,0); }
+}
+.clock {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-soft); font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-2);
+}
+
+/* ── Alert banner ──────────────────────────────────────────────────────── */
+.alert-banner {
+  display: none;
+  background: linear-gradient(90deg, rgba(239,68,68,0.95), rgba(185,28,28,0.95));
+  color: #fff;
+  padding: 12px 24px;
+  font-weight: 600; letter-spacing: 0.3px;
+  display: none; align-items: center; gap: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.alert-banner.show { display: flex; }
+.alert-banner.critical { background: linear-gradient(90deg, rgba(185,28,28,0.95), rgba(127,29,29,0.95)); animation: alert-pulse 1.1s ease-in-out infinite; }
+.alert-banner svg { width: 18px; height: 18px; flex: 0 0 18px; }
+@keyframes alert-pulse {
+  0%,100% { box-shadow: inset 0 0 30px rgba(255,80,80,0.2); }
+  50%     { box-shadow: inset 0 0 60px rgba(255,80,80,0.45); }
+}
+
+/* ── Layout grid ───────────────────────────────────────────────────────── */
+.shell {
+  padding: 18px;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-auto-rows: min-content;
+}
+.shell .full   { grid-column: 1 / -1; }
+@media (max-width: 1180px) {
+  .shell { grid-template-columns: 1fr; }
+}
+
+/* Card */
+.card {
+  background: var(--card);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: ""; position: absolute; inset: 0;
+  border-radius: 14px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 30%);
+}
+.card .title-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.card h2 {
+  margin: 0;
+  font-size: 11px; font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.7px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card h2 svg { width: 13px; height: 13px; color: var(--purple); }
+.card .pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.4px;
+  background: var(--purple-dim);
+  color: var(--purple);
+  border: 1px solid rgba(139,92,246,0.35);
+  text-transform: uppercase;
+}
+
+/* Composite left card (waveform + spectrum) */
+.signal-card { display: flex; flex-direction: column; gap: 14px; }
+.wave-wrap { position: relative; height: 240px; }
+.wave-spinner {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 13px;
+}
+.spectrum-wrap { position: relative; height: 130px; }
+.tab-group { display: inline-flex; gap: 6px; }
+.tab {
+  padding: 4px 10px;
+  font-size: 11px; font-weight: 600;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tab.active {
+  background: var(--purple-dim);
+  color: var(--purple);
+  border-color: rgba(139,92,246,0.4);
+}
+.tab:hover { color: var(--text); }
+
+/* Metric gauges (4-up) */
+.gauges {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+}
+.gauge {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 12px 10px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  position: relative;
+}
+.gauge .label {
+  font-size: 10px; color: var(--muted); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.6px;
+}
+.gauge .value {
+  font-size: 22px; font-weight: 700; line-height: 1.1;
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+.gauge .unit { font-size: 11px; color: var(--muted); margin-left: 3px; font-weight: 500; }
+.gauge .bar {
+  margin-top: 4px; height: 5px; border-radius: 3px;
+  background: rgba(78, 89, 119, 0.18); overflow: hidden;
+}
+.gauge .bar > span {
+  display: block; height: 100%; width: 0%;
+  border-radius: 3px;
+  background: var(--blue);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
+}
+.gauge.ok .value { color: var(--green); }
+.gauge.ok .bar > span { background: linear-gradient(90deg, #16a34a, #22c55e); }
+.gauge.warn .value { color: var(--amber); }
+.gauge.warn .bar > span { background: linear-gradient(90deg, #d97706, #f59e0b); }
+.gauge.bad .value { color: var(--red); }
+.gauge.bad .bar > span { background: linear-gradient(90deg, #dc2626, #ef4444); }
+
+/* Classification card (right column) */
+.cls-card { display: flex; flex-direction: column; gap: 14px; }
+.severity {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 800; font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  background: var(--green); color: #fff;
+}
+.severity .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.85); }
+.severity.none     { background: linear-gradient(135deg, #16a34a, #22c55e); box-shadow: 0 4px 14px rgba(34,197,94,0.35); }
+.severity.low      { background: linear-gradient(135deg, #2563eb, #3b82f6); box-shadow: 0 4px 14px rgba(59,130,246,0.35); }
+.severity.medium   { background: linear-gradient(135deg, #d97706, #f59e0b); box-shadow: 0 4px 14px rgba(245,158,11,0.35); }
+.severity.high     { background: linear-gradient(135deg, #dc2626, #ef4444); box-shadow: 0 4px 14px rgba(239,68,68,0.35); }
+.severity.critical {
+  background: linear-gradient(135deg, #7f1d1d, #b91c1c);
+  box-shadow: 0 4px 14px rgba(185,28,28,0.5);
+  animation: alert-pulse 1.1s ease-in-out infinite;
+}
+.disturbance-name {
+  margin: 0; font-size: 28px; font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.4px;
+  line-height: 1.15;
+}
+.stage-line {
+  font-size: 12px; color: var(--muted); margin-top: 4px;
+  display: flex; align-items: center; gap: 6px;
+}
+.stage-line .stage-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--blue-dim); color: var(--blue);
+  font-weight: 700; font-size: 10px; letter-spacing: 0.4px;
+  border: 1px solid rgba(59,130,246,0.35);
+}
+.stage-line .stage-tag.s2 { background: var(--purple-dim); color: var(--purple); border-color: rgba(139,92,246,0.35); }
+
+.confidence-block {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 4px;
+}
+.confidence-block .head {
+  display: flex; align-items: baseline; gap: 8px;
+}
+.confidence-block .label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; }
+.confidence-block .pct {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.confidence-block .bar {
+  height: 9px; border-radius: 5px;
+  background: rgba(78, 89, 119, 0.18); overflow: hidden;
+}
+.confidence-block .bar > span {
+  display: block; height: 100%; width: 0%;
+  background: var(--grad-accent);
+  border-radius: 5px;
+  transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* Top-K bars */
+.topk { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.topk-row {
+  display: grid; grid-template-columns: 1fr 50px;
+  align-items: center; gap: 10px;
+  font-size: 12px;
+}
+.topk-row .name-bar {
+  position: relative;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: var(--card-2);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.topk-row .name-bar .fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(139,92,246,0.18), rgba(59,130,246,0.18));
+  transition: width 0.5s ease;
+}
+.topk-row .name-bar .name {
+  position: relative; z-index: 1;
+  color: var(--text); font-weight: 600;
+}
+.topk-row.top1 .name-bar .fill { background: linear-gradient(90deg, rgba(139,92,246,0.35), rgba(59,130,246,0.35)); }
+.topk-row .pct {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cause/equipment/actions */
+.cause-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+@media (max-width: 720px) { .cause-row { grid-template-columns: 1fr; } }
+.cause-block {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px; line-height: 1.5;
+  color: var(--text-soft);
+}
+.cause-block strong { color: var(--text); display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+.equip-block {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-left: 3px solid var(--amber);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px; line-height: 1.5;
+  color: var(--text);
+}
+.equip-block strong { color: var(--amber); display: block; margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+.actions {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.actions li {
+  display: grid; grid-template-columns: 28px 1fr;
+  gap: 10px;
+  align-items: center;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+.actions .num {
+  width: 26px; height: 26px; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 12px; color: #fff;
+  background: var(--blue);
+}
+.actions .num.none, .actions .num.low { background: var(--blue); }
+.actions .num.medium { background: var(--amber); }
+.actions .num.high { background: var(--red); }
+.actions .num.critical { background: var(--darkred); }
+
+/* Bottom strip — 4 small cards */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 1180px) { .strip { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px)  { .strip { grid-template-columns: 1fr; } }
+.strip .card { padding: 14px; }
+.strip .donut-wrap { position: relative; height: 160px; display: flex; align-items: center; justify-content: center; }
+.strip .donut-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.strip .donut-center .big {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px; font-weight: 700; color: var(--text);
+}
+.strip .donut-center .small { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+.strip .latency-wrap { height: 160px; }
+.strip .stat-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 12px;
+}
+.strip .stat-row:last-child { border-bottom: none; }
+.strip .stat-row .k { color: var(--muted); font-weight: 500; }
+.strip .stat-row .v { font-family: 'JetBrains Mono', monospace; color: var(--text); font-weight: 600; }
+.strip .stat-row .v.green { color: var(--green); }
+.strip .stat-row .v.amber { color: var(--amber); }
+.strip .stat-row .v.red   { color: var(--red); }
+
+/* Event log */
+.log {
+  list-style: none; padding: 0; margin: 0;
+  max-height: 280px; overflow-y: auto;
+}
+.log li {
+  display: grid;
+  grid-template-columns: 12px 70px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 6px;
+  border-bottom: 1px dashed var(--border);
+  font-size: 12px;
+}
+.log li:last-child { border-bottom: none; }
+.log li .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.log li .dot.none     { background: var(--green); }
+.log li .dot.low      { background: var(--blue); }
+.log li .dot.medium   { background: var(--amber); }
+.log li .dot.high     { background: var(--red); }
+.log li .dot.critical { background: var(--darkred); box-shadow: 0 0 7px rgba(185,28,28,0.7); }
+.log li .ts {
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+.log li .cls { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log li .pct { color: var(--text-soft); font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; font-size: 11px; }
+.log::-webkit-scrollbar { width: 7px; }
+.log::-webkit-scrollbar-track { background: transparent; }
+.log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.log::-webkit-scrollbar-thumb:hover { background: var(--border-hi); }
+
+/* Misc */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  padding: 10px 16px;
+  background: var(--card-solid);
+  border: 1px solid var(--border-hi);
+  border-radius: 9px;
+  font-size: 12px; color: var(--text);
+  box-shadow: var(--shadow-lg);
+  opacity: 0; transform: translateY(8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 60;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- ═════════════ TOP BAR ═════════════ -->
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13 2 L4 14 H11 L9 22 L20 9 H13 Z" fill="currentColor"/>
+      </svg>
+    </div>
+    <div class="title">
+      <div class="name">PQD <span style="background: var(--grad-accent); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Real-Time</span> Monitor</div>
+      <div class="sub">2-Stage Hybrid CNN+RF · IEEE 1159</div>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="lbl">Frames</div>
+      <div class="val mono"><span id="kFrames">0</span></div>
+    </div>
+    <div class="kpi" title="Mean Stage 1 inference (threshold check)">
+      <div class="lbl">Stage 1 time</div>
+      <div class="val mono"><span id="kS1Time">—</span><span class="unit">ms</span></div>
+    </div>
+    <div class="kpi" title="Mean Stage 2 inference (Hybrid CNN+RF) when triggered">
+      <div class="lbl">Stage 2 time</div>
+      <div class="val mono"><span id="kS2Time">—</span><span class="unit">ms</span></div>
+    </div>
+    <div class="kpi" title="Of frames that reached Stage 2, fraction whose predicted class matches the true label">
+      <div class="lbl">Stage 2 accuracy</div>
+      <div class="val mono"><span id="kS2Acc">—</span><span class="unit">%</span></div>
+    </div>
+  </div>
+
+  <div class="right-cluster">
+    <button class="icon-btn" id="btnPause" title="Pause stream">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btnClear" title="Clear event log">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M6 6l1 14a2 2 0 002 2h6a2 2 0 002-2l1-14"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btnCopy" title="Copy current result JSON">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/>
+      </svg>
+    </button>
+    <span class="conn" id="conn"><span class="dot"></span><span id="connText">Connecting...</span></span>
+    <span class="clock" id="clock">--:--:--</span>
+  </div>
+</header>
+
+<div id="alertBanner" class="alert-banner">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 9v4M12 17h.01M10.3 3.86 1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+  </svg>
+  <span id="alertText">Alert</span>
+</div>
+
+<!-- ═════════════ MAIN GRID ═════════════ -->
+<main class="shell">
+
+  <!-- LEFT: signal card (waveform + spectrum + gauges) -->
+  <section class="card signal-card">
+    <div class="title-row">
+      <h2>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-9 6 18 3-9h3"/></svg>
+        Signal &amp; Spectrum
+      </h2>
+      <div class="tab-group">
+        <button class="tab active" data-tab="wave">Waveform</button>
+        <button class="tab"        data-tab="spec">Spectrum</button>
+      </div>
+    </div>
+    <div class="wave-wrap" id="wavePane">
+      <div class="wave-spinner" id="waveSpinner">Waiting for signal…</div>
+      <canvas id="waveChart"></canvas>
+    </div>
+    <div class="spectrum-wrap" id="specPane" style="display:none;">
+      <canvas id="specChart"></canvas>
+    </div>
+
+    <div class="gauges">
+      <div class="gauge" id="gRms">
+        <div class="label">RMS</div>
+        <div class="value mono"><span id="mRms">—</span><span class="unit">pu</span></div>
+        <div class="bar"><span id="bRms"></span></div>
+      </div>
+      <div class="gauge" id="gThd">
+        <div class="label">THD</div>
+        <div class="value mono"><span id="mThd">—</span><span class="unit">%</span></div>
+        <div class="bar"><span id="bThd"></span></div>
+      </div>
+      <div class="gauge" id="gCrest">
+        <div class="label">Crest</div>
+        <div class="value mono"><span id="mCrest">—</span></div>
+        <div class="bar"><span id="bCrest"></span></div>
+      </div>
+      <div class="gauge" id="gPeak">
+        <div class="label">Peak</div>
+        <div class="value mono"><span id="mPeak">—</span><span class="unit">pu</span></div>
+        <div class="bar"><span id="bPeak"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: classification card -->
+  <section class="card cls-card">
+    <div class="title-row">
+      <h2>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Classification
+      </h2>
+      <span class="pill" id="topPill">RT</span>
+    </div>
+    <span class="severity none" id="severityBadge"><span class="dot"></span><span id="sevText">NORMAL</span></span>
+    <h1 class="disturbance-name" id="dispName">Awaiting first signal</h1>
+    <div class="stage-line"><span class="stage-tag" id="stageTag">STAGE —</span><span id="stageReason">—</span></div>
+
+    <div class="confidence-block">
+      <div class="head">
+        <span class="label">Confidence</span>
+        <span class="pct" id="confPct">—</span>
+      </div>
+      <div class="bar"><span id="confBar"></span></div>
+    </div>
+
+    <div class="topk" id="topKBox"></div>
+  </section>
+
+  <!-- WIDE: cause + equipment + actions (full width) -->
+  <section class="card full">
+    <div class="title-row">
+      <h2>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6m0 0a4 4 0 014 4v3l1.5 3h-11L8 15v-3a4 4 0 014-4z"/><path d="M9 21h6"/></svg>
+        Cause · Equipment at Risk · Immediate Actions
+      </h2>
+    </div>
+    <div class="cause-row" style="margin-bottom: 14px;">
+      <div class="cause-block">
+        <strong>Cause</strong>
+        <span id="causeText">—</span>
+      </div>
+      <div class="equip-block">
+        <strong>Equipment at risk</strong>
+        <span id="equipText">—</span>
+      </div>
+    </div>
+    <ol class="actions" id="actionList">
+      <li><span class="num low">—</span><span>Awaiting first signal…</span></li>
+    </ol>
+  </section>
+
+  <!-- BOTTOM STRIP: 4 cards (full width) -->
+  <section class="strip full">
+
+    <!-- Class distribution donut -->
+    <div class="card">
+      <div class="title-row">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l8 4"/></svg>
+          Class distribution
+        </h2>
+      </div>
+      <div class="donut-wrap">
+        <canvas id="donutChart"></canvas>
+        <div class="donut-center"><div class="big" id="donutCount">0</div><div class="small">last 50 frames</div></div>
+      </div>
+    </div>
+
+    <!-- Latency timeline -->
+    <div class="card">
+      <div class="title-row">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
+          Latency timeline (ms)
+        </h2>
+      </div>
+      <div class="latency-wrap"><canvas id="latencyChart"></canvas></div>
+    </div>
+
+    <!-- System stats -->
+    <div class="card">
+      <div class="title-row">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8M12 18v2"/></svg>
+          System stats
+        </h2>
+      </div>
+      <div class="stat-row"><span class="k">Total frames</span><span class="v" id="sFrames">0</span></div>
+      <div class="stat-row"><span class="k">Stage 1 caught</span><span class="v green" id="sS1">0</span></div>
+      <div class="stat-row"><span class="k">Stage 2 fired</span><span class="v amber" id="sS2">0</span></div>
+      <div class="stat-row"><span class="k">Critical alerts</span><span class="v red" id="sCrit">0</span></div>
+      <div class="stat-row"><span class="k">Avg per stage</span><span class="v" id="sAvg">—</span></div>
+      <div class="stat-row"><span class="k">Last signal age</span><span class="v" id="sAge">—</span></div>
+    </div>
+
+    <!-- Event log -->
+    <div class="card">
+      <div class="title-row">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h11M9 12h11M9 19h11"/><circle cx="4" cy="5" r="1.5"/><circle cx="4" cy="12" r="1.5"/><circle cx="4" cy="19" r="1.5"/></svg>
+          Event log
+        </h2>
+      </div>
+      <ul class="log" id="eventLog"><li><span class="dot"></span><span class="ts">--:--:--</span><span class="cls">Waiting for events…</span><span class="pct"></span></li></ul>
+    </div>
+
+  </section>
+
+</main>
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// State
+// ════════════════════════════════════════════════════════════════════════
+const FS = 5000, F0 = 50, N = 100;
+const TIME_MS = Array.from({length: N}, (_, i) => (i / FS) * 1000);
+const PURE_REF = TIME_MS.map(ms => Math.sin(2 * Math.PI * F0 * (ms / 1000)));
+const HARMONICS_HZ = [50, 100, 150, 250, 350, 450, 550, 750, 950, 1250];
+
+const state = {
+  frames: 0,
+  s1Count: 0,           // frames that returned at Stage 1 (no S2 call)
+  s2Count: 0,           // frames that escalated to Stage 2
+  critCount: 0,
+  s1TimeSum: 0,         // sum of total_time_ms over S1-only frames
+  s2TimeSum: 0,         // sum of cnn_time_ms + rf_time_ms over S2 frames
+  s2Correct: 0,         // among S2 frames with a true_label, how many matched
+  s2Known: 0,           // S2 frames that had a true_label
+  paused: false,
+  lastResult: null,
+  lastTs: 0,
+  classCounts: new Map(),
+  classRing: [],
+  latencies: [],
+  connectedOnce: false,
+  demoTimer: null,
+};
+
+// ════════════════════════════════════════════════════════════════════════
+// Helpers
+// ════════════════════════════════════════════════════════════════════════
+function pad(n) { return String(n).padStart(2, "0"); }
+function nowStr() {
+  const d = new Date();
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function $(id) { return document.getElementById(id); }
+function setText(id, v) { const el = $(id); if (el) el.textContent = v; }
+function fmtNum(n) { return n.toLocaleString("en-US"); }
+function setClock() { setText("clock", nowStr()); }
+setClock(); setInterval(setClock, 1000);
+
+function setConn(state, label) {
+  $("conn").className = "conn " + state;
+  setText("connText", label);
+  $("topPill").textContent = state === "live" ? "LIVE" : state === "demo" ? "DEMO" : "OFF";
+  $("topPill").style.background = state === "live" ? "var(--green-dim)" : state === "demo" ? "var(--amber-dim)" : "var(--purple-dim)";
+  $("topPill").style.color = state === "live" ? "var(--green)" : state === "demo" ? "var(--amber)" : "var(--purple)";
+  $("topPill").style.borderColor = state === "live" ? "rgba(34,197,94,0.35)" : state === "demo" ? "rgba(245,158,11,0.35)" : "rgba(139,92,246,0.35)";
+}
+
+function showToast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(window.__toastT);
+  window.__toastT = setTimeout(() => t.classList.remove("show"), 1600);
+}
+
+// FFT-lite: compute |F(k)| at integer multiples of 50 Hz via direct DFT
+// (just 10 bins × 100 samples = 1000 ops — trivially fast)
+function spectrumBins(sig) {
+  const out = [];
+  for (const f of HARMONICS_HZ) {
+    let re = 0, im = 0;
+    const w = 2 * Math.PI * f / FS;
+    for (let n = 0; n < N; n++) {
+      const a = w * n;
+      re += sig[n] * Math.cos(a);
+      im -= sig[n] * Math.sin(a);
+    }
+    out.push(Math.sqrt(re * re + im * im) / N);
+  }
+  return out;
+}
+
+function computeParams(sig, s1Fallback) {
+  const rms = Math.sqrt(sig.reduce((a, x) => a + x * x, 0) / sig.length);
+  const peak = Math.max(...sig.map(Math.abs));
+  const crest = peak / (rms + 1e-10);
+  const thd = (s1Fallback && typeof s1Fallback.thd_approx === "number")
+    ? s1Fallback.thd_approx : 0;
+  return { rms, thd, crest, peak };
+}
+
+function setGauge(gaugeId, valId, barId, value, fmt, classify, fillPct) {
+  const cls = classify(value);
+  const g = $(gaugeId);
+  g.className = "gauge " + cls;
+  setText(valId, fmt(value));
+  $(barId).style.width = Math.max(0, Math.min(100, fillPct(value))) + "%";
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Charts
+// ════════════════════════════════════════════════════════════════════════
+const waveCtx = $("waveChart").getContext("2d");
+const waveChart = new Chart(waveCtx, {
+  type: "line",
+  data: {
+    labels: TIME_MS.map(v => v.toFixed(1)),
+    datasets: [
+      { label: "Signal", data: Array(N).fill(null),
+        borderColor: "#8b5cf6",
+        backgroundColor: (ctx) => {
+          const c = ctx.chart.ctx;
+          const g = c.createLinearGradient(0, 0, 0, 200);
+          g.addColorStop(0, "rgba(139,92,246,0.32)");
+          g.addColorStop(1, "rgba(59,130,246,0.02)");
+          return g;
+        },
+        borderWidth: 2.2, tension: 0.32, pointRadius: 0, fill: true,
+      },
+      { label: "Pure 50Hz reference", data: PURE_REF,
+        borderColor: "rgba(184, 196, 226, 0.5)",
+        borderWidth: 1, borderDash: [4, 4], pointRadius: 0, fill: false,
+      },
+    ],
+  },
+  options: {
+    animation: false,
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: "index", intersect: false },
+    scales: {
+      x: { title: { display: true, text: "Time (ms)", color: "#6b7589", font: { size: 10 } },
+           ticks: { color: "#6b7589", maxTicksLimit: 11, font: { size: 10 } },
+           grid: { color: "rgba(78, 89, 119, 0.12)" } },
+      y: { min: -2, max: 2,
+           title: { display: true, text: "Amplitude (pu)", color: "#6b7589", font: { size: 10 } },
+           ticks: { color: "#6b7589", font: { size: 10 } },
+           grid: { color: "rgba(78, 89, 119, 0.12)" } },
+    },
+    plugins: { legend: { labels: { color: "#b6bfd0", font: { size: 11 }, padding: 12 }, position: "bottom" } },
+  },
+});
+
+const specCtx = $("specChart").getContext("2d");
+const specChart = new Chart(specCtx, {
+  type: "bar",
+  data: {
+    labels: HARMONICS_HZ.map(h => h + " Hz"),
+    datasets: [{
+      label: "Magnitude",
+      data: HARMONICS_HZ.map(_ => 0),
+      backgroundColor: HARMONICS_HZ.map((h, i) => i === 0 ? "rgba(34,197,94,0.85)" : "rgba(139,92,246,0.65)"),
+      borderRadius: 4, borderSkipped: false,
+    }],
+  },
+  options: {
+    animation: { duration: 280 },
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      x: { ticks: { color: "#6b7589", font: { size: 10 } }, grid: { display: false } },
+      y: { ticks: { color: "#6b7589", font: { size: 10 } }, grid: { color: "rgba(78,89,119,0.12)" }, beginAtZero: true },
+    },
+    plugins: { legend: { display: false } },
+  },
+});
+
+const donutCtx = $("donutChart").getContext("2d");
+const DONUT_PALETTE = [
+  "#22c55e", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444",
+  "#06b6d4", "#ec4899", "#84cc16", "#a855f7", "#10b981",
+  "#f97316", "#0ea5e9", "#facc15", "#d946ef", "#14b8a6",
+  "#f43f5e", "#6366f1",
+];
+const donutChart = new Chart(donutCtx, {
+  type: "doughnut",
+  data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderWidth: 0 }] },
+  options: {
+    cutout: "62%",
+    animation: { duration: 320 },
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: "right",
+                labels: { color: "#b6bfd0", font: { size: 9 }, padding: 6, boxWidth: 8 } },
+      tooltip: { titleFont: { size: 11 }, bodyFont: { size: 11 } },
+    },
+  },
+});
+
+const latencyCtx = $("latencyChart").getContext("2d");
+const latencyChart = new Chart(latencyCtx, {
+  type: "line",
+  data: {
+    labels: Array(30).fill(""),
+    datasets: [{
+      label: "ms",
+      data: Array(30).fill(null),
+      borderColor: "#8b5cf6",
+      backgroundColor: (ctx) => {
+        const c = ctx.chart.ctx;
+        const g = c.createLinearGradient(0, 0, 0, 160);
+        g.addColorStop(0, "rgba(139,92,246,0.30)");
+        g.addColorStop(1, "rgba(139,92,246,0.0)");
+        return g;
+      },
+      tension: 0.35, pointRadius: 0, fill: true, borderWidth: 2,
+    }],
+  },
+  options: {
+    animation: false,
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      x: { display: false },
+      y: { ticks: { color: "#6b7589", font: { size: 10 } }, grid: { color: "rgba(78,89,119,0.12)" }, beginAtZero: true },
+    },
+    plugins: { legend: { display: false } },
+  },
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Tabs (waveform / spectrum)
+// ════════════════════════════════════════════════════════════════════════
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    const isSpec = tab.dataset.tab === "spec";
+    $("wavePane").style.display = isSpec ? "none" : "block";
+    $("specPane").style.display = isSpec ? "block" : "none";
+    if (isSpec) specChart.resize();
+    else waveChart.resize();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Render — main update path on every result
+// ════════════════════════════════════════════════════════════════════════
+function render(result) {
+  if (state.paused) return;
+  state.lastResult = result;
+  state.lastTs = Date.now();
+
+  // Frames + stage counters
+  state.frames++;
+  if ((result.severity || "").toLowerCase() === "critical") state.critCount++;
+  if (result.stage_used === 1) {
+    state.s1Count++;
+    if (typeof result.total_time_ms === "number") state.s1TimeSum += result.total_time_ms;
+  } else if (result.stage_used === 2) {
+    state.s2Count++;
+    // Prefer the per-stage CNN+RF times if available, else fall back to total.
+    const s2t = (result.stage2_result &&
+                 typeof result.stage2_result.cnn_time_ms === "number" &&
+                 typeof result.stage2_result.rf_time_ms === "number")
+      ? result.stage2_result.cnn_time_ms + result.stage2_result.rf_time_ms
+      : (result.total_time_ms || 0);
+    state.s2TimeSum += s2t;
+    if (result.true_label) {
+      state.s2Known++;
+      if (result.true_label === result.class) state.s2Correct++;
+    }
+  }
+
+  // ── Waveform ──
+  $("waveSpinner").style.display = "none";
+  let sig = null;
+  if (Array.isArray(result.signal) && result.signal.length === N) {
+    sig = result.signal;
+    waveChart.data.datasets[0].data = sig;
+    waveChart.update("none");
+    // Spectrum
+    const spec = spectrumBins(sig);
+    specChart.data.datasets[0].data = spec;
+    specChart.update("none");
+  }
+
+  // ── Gauges ──
+  const params = computeParams(sig || Array(N).fill(0), result.stage1_params);
+  setGauge("gRms", "mRms", "bRms", params.rms,
+    v => v.toFixed(3),
+    v => (v >= 0.9 && v <= 1.1) ? "ok"
+       : ((v >= 0.8 && v < 0.9) || (v > 1.1 && v <= 1.2)) ? "warn" : "bad",
+    v => Math.min(100, (v / 1.5) * 100)
+  );
+  setGauge("gThd", "mThd", "bThd", params.thd * 100,
+    v => v.toFixed(2),
+    v => v < 3 ? "ok" : v < 5 ? "warn" : "bad",
+    v => Math.min(100, v * 8)
+  );
+  setGauge("gCrest", "mCrest", "bCrest", params.crest,
+    v => v.toFixed(2),
+    v => (v >= 1.3 && v <= 1.6) ? "ok"
+       : (v >= 1.1 && v <= 2.0) ? "warn" : "bad",
+    v => Math.min(100, (v / 4) * 100)
+  );
+  setGauge("gPeak", "mPeak", "bPeak", params.peak,
+    v => v.toFixed(3),
+    v => (v >= 0.9 && v <= 1.2) ? "ok"
+       : (v >= 0.7 && v <= 1.5) ? "warn" : "bad",
+    v => Math.min(100, (v / 2.0) * 100)
+  );
+
+  // ── Severity badge ──
+  const sev = (result.severity || "none").toLowerCase();
+  $("severityBadge").className = "severity " + sev;
+  setText("sevText", ({ none: "NORMAL", low: "LOW", medium: "MEDIUM",
+                       high: "HIGH",  critical: "CRITICAL" }[sev]) || "UNKNOWN");
+
+  // ── Disturbance + stage ──
+  setText("dispName", result.display_name || result.class || "—");
+  const stage = result.stage_used || 1;
+  $("stageTag").className = "stage-tag" + (stage === 2 ? " s2" : "");
+  setText("stageTag", "STAGE " + stage);
+  setText("stageReason", result.stage1_reason || "—");
+
+  // ── Confidence ──
+  const conf = Number(result.confidence || 0);
+  $("confBar").style.width = conf + "%";
+  setText("confPct", conf.toFixed(1) + "%");
+
+  // ── Top-K ──
+  const topk = (result.stage2_result && result.stage2_result.top3)
+    || [{ class: result.class, prob: conf / 100 }];
+  const tBox = $("topKBox"); tBox.innerHTML = "";
+  topk.forEach((t, i) => {
+    const row = document.createElement("div");
+    row.className = "topk-row" + (i === 0 ? " top1" : "");
+    const pct = (t.prob * 100).toFixed(1);
+    row.innerHTML = `
+      <div class="name-bar">
+        <div class="fill" style="width:${pct}%;"></div>
+        <span class="name">${t.class || "—"}</span>
+      </div>
+      <span class="pct">${pct}%</span>
+    `;
+    tBox.appendChild(row);
+  });
+
+  // ── Cause / equipment / actions ──
+  setText("causeText", result.cause || "—");
+  setText("equipText", result.equipment_at_risk || "—");
+  const actions = result.immediate_actions || ["No actions provided."];
+  const list = $("actionList"); list.innerHTML = "";
+  actions.forEach((a, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="num ${sev}">${i + 1}</span><span>${a}</span>`;
+    list.appendChild(li);
+  });
+
+  // ── Class distribution donut (last 50 frames) ──
+  state.classRing.push(result.class || "?");
+  if (state.classRing.length > 50) {
+    const dropped = state.classRing.shift();
+    state.classCounts.set(dropped, (state.classCounts.get(dropped) || 1) - 1);
+    if (state.classCounts.get(dropped) <= 0) state.classCounts.delete(dropped);
+  }
+  state.classCounts.set(result.class || "?", (state.classCounts.get(result.class || "?") || 0) + 1);
+  const labels = Array.from(state.classCounts.keys());
+  const data   = labels.map(k => state.classCounts.get(k));
+  donutChart.data.labels = labels;
+  donutChart.data.datasets[0].data = data;
+  donutChart.data.datasets[0].backgroundColor = labels.map((_, i) => DONUT_PALETTE[i % DONUT_PALETTE.length]);
+  donutChart.update("none");
+  setText("donutCount", state.classRing.length);
+
+  // ── Latency rolling chart (last 30) ──
+  state.latencies.push(result.total_time_ms || 0);
+  if (state.latencies.length > 30) state.latencies.shift();
+  const padArr = Array(30 - state.latencies.length).fill(null).concat(state.latencies);
+  latencyChart.data.datasets[0].data = padArr;
+  latencyChart.update("none");
+
+  // ── KPI strip (stage-aware) ──
+  setText("kFrames",  fmtNum(state.frames));
+  setText("kS1Time",  state.s1Count ? (state.s1TimeSum / state.s1Count).toFixed(2) : "—");
+  setText("kS2Time",  state.s2Count ? (state.s2TimeSum / state.s2Count).toFixed(1) : "—");
+  setText("kS2Acc",   state.s2Known ? ((state.s2Correct / state.s2Known) * 100).toFixed(2) : "—");
+
+  // ── System stats card ──
+  setText("sFrames", fmtNum(state.frames));
+  setText("sS1",     fmtNum(state.s1Count));
+  setText("sS2",     fmtNum(state.s2Count));
+  setText("sCrit",   fmtNum(state.critCount));
+  const avgS1 = state.s1Count ? (state.s1TimeSum / state.s1Count).toFixed(2) + " ms" : "—";
+  const avgS2 = state.s2Count ? (state.s2TimeSum / state.s2Count).toFixed(1) + " ms" : "—";
+  setText("sAvg",    `S1 ${avgS1} · S2 ${avgS2}`);
+
+  // ── Event log ──
+  const log = $("eventLog");
+  if (log.firstElementChild &&
+      log.firstElementChild.querySelector(".cls") &&
+      log.firstElementChild.querySelector(".cls").textContent === "Waiting for events…") {
+    log.innerHTML = "";
+  }
+  const li = document.createElement("li");
+  li.innerHTML = `
+    <span class="dot ${sev}"></span>
+    <span class="ts">${nowStr()}</span>
+    <span class="cls">${result.display_name || result.class || "—"}</span>
+    <span class="pct">${conf.toFixed(1)}%</span>
+  `;
+  log.insertBefore(li, log.firstChild);
+  while (log.children.length > 30) log.removeChild(log.lastChild);
+
+  // ── Alert banner ──
+  const banner = $("alertBanner");
+  if (sev === "high" || sev === "critical") {
+    banner.className = "alert-banner show" + (sev === "critical" ? " critical" : "");
+    setText("alertText", `${result.display_name || result.class} detected — ${actions[0] || ""}`);
+    clearTimeout(window.__alertT);
+    window.__alertT = setTimeout(() => banner.classList.remove("show"), 5000);
+  }
+}
+
+// ── Last-signal age ticker ──
+setInterval(() => {
+  if (!state.lastTs) { setText("sAge", "—"); return; }
+  const age = Math.floor((Date.now() - state.lastTs) / 1000);
+  setText("sAge", age + " s ago");
+}, 1000);
+
+// ════════════════════════════════════════════════════════════════════════
+// Toolbar buttons
+// ════════════════════════════════════════════════════════════════════════
+$("btnPause").addEventListener("click", () => {
+  state.paused = !state.paused;
+  $("btnPause").classList.toggle("active", state.paused);
+  $("btnPause").title = state.paused ? "Resume stream" : "Pause stream";
+  $("btnPause").innerHTML = state.paused
+    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>`
+    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`;
+  showToast(state.paused ? "Stream paused" : "Stream resumed");
+});
+$("btnClear").addEventListener("click", () => {
+  $("eventLog").innerHTML = `<li><span class="dot"></span><span class="ts">--:--:--</span><span class="cls">Cleared.</span><span class="pct"></span></li>`;
+  showToast("Log cleared");
+});
+$("btnCopy").addEventListener("click", async () => {
+  if (!state.lastResult) { showToast("No result yet"); return; }
+  try {
+    const txt = JSON.stringify(state.lastResult, null, 2);
+    await navigator.clipboard.writeText(txt);
+    showToast("Copied result JSON");
+  } catch (e) {
+    showToast("Copy failed: " + e.message);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// Demo mode (runs when backend unreachable)
+// ════════════════════════════════════════════════════════════════════════
+const DEMO_CLASSES = [
+  "Pure_Sinusoidal","Sag","Swell","Interruption","Transient",
+  "Oscillatory_Transient","Harmonics","Flicker","Notch",
+  "Sag_Harmonics","Sag_Flicker","Sag_Oscillatory",
+  "Swell_Harmonics","Swell_Flicker","Swell_Oscillatory",
+  "Harmonics_Flicker","Harmonics_Notch"
+];
+const KB = {
+  Pure_Sinusoidal:        ["Normal — Pure Sinusoidal","none",   "Signal is within normal operating bounds.","No equipment at risk.",["No action required.","Continue routine monitoring.","Log the sample for trend analysis."]],
+  Sag:                    ["Voltage Sag","high",                 "RMS voltage drops 10–90% of nominal due to remote faults or large motor starts.","VFDs, PLCs, contactors, computers.",["Identify the faulted feeder via SCADA.","Inspect upstream protection relay operations.","Check status of large motor loads.","Consider deploying a dynamic voltage restorer."]],
+  Swell:                  ["Voltage Swell","high",               "RMS voltage rises 10–80% above nominal, often from single-line faults or load shedding.","SMPS, capacitor banks, surge protectors.",["Locate source of unbalanced fault.","Verify capacitor switching schedule.","Inspect SPDs.","Audit transformer tap settings."]],
+  Interruption:           ["Voltage Interruption","critical",    "RMS voltage collapses to <10% of nominal due to a fault or breaker operation.","All non-UPS-backed loads.",["Activate backup generator/UPS.","Pinpoint upstream breaker.","Begin orderly shutdown of unsupported equipment.","Notify operations.","Coordinate with utility."]],
+  Transient:              ["Impulsive Transient","critical",     "Sub-millisecond high-magnitude spike from lightning, ESD, or switching.","Insulation, semiconductors, comm interfaces.",["Inspect SPDs and replace if degraded.","Verify grounding/bonding.","Check insulation resistance.","Review weather correlation.","Audit switching procedures."]],
+  Oscillatory_Transient:  ["Oscillatory Transient","high",       "Damped 300 Hz–5 kHz disturbance from capacitor energizing or line switching.","ASDs, electronic ballasts, DC bus capacitors.",["Confirm capacitor switching events.","Inspect pre-insertion resistors.","Add line reactors upstream of drives.","Re-tune capacitor switching."]],
+  Harmonics:              ["Harmonic Distortion","medium",       "Steady-state distortion from non-linear loads (VFDs, rectifiers, SMPS).","Transformers, neutral conductors, motors.",["Measure THD at the PCC.","Identify dominant harmonic orders.","Install passive/active harmonic filters.","Verify K-factor of transformer."]],
+  Flicker:                ["Voltage Flicker","medium",           "Low-frequency amplitude modulation from arc furnaces, welders, or motor starts.","Lighting, analog electronics, instrumentation.",["Identify the fluctuating load.","Calculate Pst/Plt indices.","Apply STATCOM/SVC.","Stiffen the supply."]],
+  Notch:                  ["Voltage Notch","low",                "Periodic dips at converter commutation points.","Zero-crossing-sensitive devices, comm links.",["Identify offending converter.","Add line reactors at converter input.","Move sensitive loads to a separate bus.","Verify converter snubber circuits."]],
+  Sag_Harmonics:          ["Sag with Harmonics","high",          "Voltage sag on a feeder polluted by harmonic-injecting loads.","VFDs, sensitive controllers, transformers.",["Locate originating fault.","Quantify steady-state THD.","Install harmonic filters and DVR together.","Audit load behaviour during sag."]],
+  Sag_Flicker:            ["Sag with Flicker","high",            "Sag superimposed with low-frequency amplitude modulation.","Lighting, analog instruments, control equipment.",["Investigate fault clearance time.","Quantify Pst.","Deploy STATCOM/SVC.","Reinforce local feeder."]],
+  Sag_Oscillatory:        ["Sag with Oscillatory Transient","high","Sag with damped HF oscillation from capacitor switching during fault.","Drives, DC-link caps, sensitive electronics.",["Correlate capacitor switching with fault timing.","Add pre-insertion inductors.","Use line reactors at drives.","Deploy DVR for ride-through."]],
+  Swell_Harmonics:        ["Swell with Harmonics","high",        "Swell on a harmonic-rich bus when heavy non-linear load is shed.","Capacitor banks, SPDs, SMPS.",["Audit recent load shedding.","Inspect SPDs and capacitor banks.","Tune harmonic filter resonance.","Re-coordinate over-voltage protection."]],
+  Swell_Flicker:          ["Swell with Flicker","high",          "Sustained over-voltage with low-frequency modulation.","Lighting, monitors, instrumentation.",["Confirm load-shedding event.","Measure flicker indices.","Apply dynamic VAR compensation.","Adjust transformer tap."]],
+  Swell_Oscillatory:      ["Swell with Oscillatory Transient","high","Swell coinciding with damped HF transient from capacitor switching.","DC-bus caps, inverter switches, SPDs.",["Review capacitor switching schedule.","Install pre-insertion resistors.","Inspect SPDs and inverter input.","Add line reactors on drives."]],
+  Harmonics_Flicker:      ["Harmonics with Flicker","high",      "Steady-state harmonic distortion combined with low-frequency modulation.","Lighting, transformers, motors, PFC caps.",["Measure THD and Pst at the PCC.","Install STATCOM with active filtering.","Coordinate utility supply stiffness.","Schedule offending loads off-peak."]],
+  Harmonics_Notch:        ["Harmonics with Notch","high",        "Harmonic distortion combined with periodic commutation notches.","Zero-cross-sensitive devices, transformers.",["Identify converter via notching signature.","Add line reactors and isolation transformer.","Install tuned passive harmonic filter.","Move sensitive loads off polluted bus."]],
+};
+
+function genSignal(cls) {
+  const t = Array.from({length: N}, (_, i) => i / FS);
+  const sin = (k, ti) => Math.sin(2 * Math.PI * k * F0 * ti);
+  const baseSine = t.map(ti => sin(1, ti));
+  let sig;
+  switch (cls) {
+    case "Pure_Sinusoidal": sig = baseSine.slice(); break;
+    case "Sag":             sig = baseSine.map(v => 0.5 * v); break;
+    case "Swell":           sig = baseSine.map(v => 1.45 * v); break;
+    case "Interruption":    sig = baseSine.map(v => 0.05 * v); break;
+    case "Transient": {
+      sig = baseSine.slice();
+      const ts = 0.008, tau = 0.0004, B = 0.7;
+      for (let i = 0; i < N; i++) if (t[i] >= ts) sig[i] += B * Math.exp(-(t[i] - ts) / tau);
+      break;
+    }
+    case "Oscillatory_Transient": {
+      sig = baseSine.slice();
+      const ts = 0.006, tau = 0.0025, fn = 800, B = 0.4;
+      for (let i = 0; i < N; i++)
+        if (t[i] >= ts) sig[i] += B * Math.exp(-(t[i] - ts) / tau) * Math.sin(2*Math.PI*fn*(t[i] - ts));
+      break;
+    }
+    case "Harmonics":
+      sig = t.map(ti => sin(1, ti) + 0.15 * sin(3, ti) + 0.10 * sin(5, ti) + 0.05 * sin(7, ti));
+      break;
+    case "Flicker": {
+      const af = 0.10, ff = 12;
+      sig = t.map(ti => (1 + af * Math.sin(2*Math.PI*ff*ti)) * sin(1, ti));
+      break;
+    }
+    case "Notch": {
+      sig = baseSine.slice();
+      [0.20, 0.40, 0.60, 0.80].forEach(p => {
+        const idx = Math.round(p * N);
+        for (let k = -1; k <= 1; k++) if (sig[idx + k] !== undefined) sig[idx + k] *= 0.7;
+      });
+      break;
+    }
+    case "Sag_Harmonics":
+      sig = t.map(ti => 0.5 * (sin(1, ti) + 0.15 * sin(3, ti) + 0.10 * sin(5, ti)));
+      break;
+    case "Sag_Flicker":
+      sig = t.map(ti => 0.5 * sin(1, ti) * (1 + 0.10 * Math.sin(2*Math.PI*12*ti)));
+      break;
+    case "Sag_Oscillatory": {
+      sig = baseSine.map(v => 0.5 * v);
+      const ts = 0.006, tau = 0.0025, fn = 800, B = 0.4;
+      for (let i = 0; i < N; i++)
+        if (t[i] >= ts) sig[i] += B * Math.exp(-(t[i] - ts) / tau) * Math.sin(2*Math.PI*fn*(t[i] - ts));
+      break;
+    }
+    case "Swell_Harmonics":
+      sig = t.map(ti => 1.4 * (sin(1, ti) + 0.15 * sin(3, ti) + 0.10 * sin(5, ti)));
+      break;
+    case "Swell_Flicker":
+      sig = t.map(ti => 1.4 * sin(1, ti) * (1 + 0.10 * Math.sin(2*Math.PI*12*ti)));
+      break;
+    case "Swell_Oscillatory": {
+      sig = baseSine.map(v => 1.4 * v);
+      const ts = 0.006, tau = 0.0025, fn = 800, B = 0.4;
+      for (let i = 0; i < N; i++)
+        if (t[i] >= ts) sig[i] += B * Math.exp(-(t[i] - ts) / tau) * Math.sin(2*Math.PI*fn*(t[i] - ts));
+      break;
+    }
+    case "Harmonics_Flicker":
+      sig = t.map(ti => (sin(1, ti) + 0.15 * sin(3, ti) + 0.10 * sin(5, ti)) *
+                       (1 + 0.10 * Math.sin(2*Math.PI*12*ti)));
+      break;
+    case "Harmonics_Notch": {
+      sig = t.map(ti => sin(1, ti) + 0.15 * sin(3, ti) + 0.10 * sin(5, ti));
+      [0.20, 0.40, 0.60, 0.80].forEach(p => {
+        const idx = Math.round(p * N);
+        for (let k = -1; k <= 1; k++) if (sig[idx + k] !== undefined) sig[idx + k] *= 0.7;
+      });
+      break;
+    }
+    default: sig = baseSine.slice();
+  }
+  for (let i = 0; i < N; i++) sig[i] += (Math.random() - 0.5) * 0.02;
+  return sig;
+}
+function fakeS1Params(sig) {
+  const rms = Math.sqrt(sig.reduce((a, x) => a + x * x, 0) / sig.length);
+  const mu  = sig.reduce((a, x) => a + x, 0) / sig.length;
+  const sd  = Math.sqrt(sig.reduce((a, x) => a + (x - mu) ** 2, 0) / sig.length);
+  const k4  = sig.reduce((a, x) => a + (x - mu) ** 4, 0) / sig.length / (sd ** 4 + 1e-10);
+  return { rms, thd_approx: 0.01, kurtosis: k4 };
+}
+function buildDemoResult(cls) {
+  const [display, sev, cause, equip, actions] = KB[cls];
+  const sig = genSignal(cls);
+  const isNormal = (cls === "Pure_Sinusoidal");
+  const conf = isNormal ? 100 : (85 + Math.random() * 14);
+  return {
+    status: isNormal ? "Normal" : "Abnormal",
+    class: cls, display_name: display,
+    confidence: conf, severity: sev, cause,
+    equipment_at_risk: equip, immediate_actions: actions,
+    stage_used: isNormal ? 1 : 2,
+    stage1_params: fakeS1Params(sig),
+    stage1_reason: isNormal ? "All parameters within normal bounds" : "Threshold(s) exceeded",
+    stage2_result: isNormal ? null : {
+      top3: [
+        { class: cls, prob: conf / 100 },
+        { class: DEMO_CLASSES[(DEMO_CLASSES.indexOf(cls) + 1) % DEMO_CLASSES.length], prob: (1 - conf/100) * 0.7 },
+        { class: DEMO_CLASSES[(DEMO_CLASSES.indexOf(cls) + 2) % DEMO_CLASSES.length], prob: (1 - conf/100) * 0.3 },
+      ],
+      cnn_time_ms: 38 + Math.random() * 6,
+      rf_time_ms:  24 + Math.random() * 4,
+    },
+    total_time_ms: 65 + Math.random() * 8,
+    signal: sig, true_label: cls,
+  };
+}
+let demoIdx = 0;
+function startDemo() {
+  if (state.demoTimer) return;
+  setConn("demo", "Demo Mode");
+  state.demoTimer = setInterval(() => {
+    const cls = DEMO_CLASSES[Math.floor(demoIdx / 3) % DEMO_CLASSES.length];
+    render(buildDemoResult(cls));
+    demoIdx++;
+  }, 1500);
+}
+function stopDemo() {
+  if (state.demoTimer) { clearInterval(state.demoTimer); state.demoTimer = null; }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// SocketIO
+// ════════════════════════════════════════════════════════════════════════
+let sio = null;
+const sioTarget = (location.protocol === "file:") ? "http://localhost:5000" : location.origin;
+try {
+  sio = io(sioTarget, { transports: ["websocket", "polling"], reconnection: true, timeout: 3000 });
+  sio.on("connect", () => {
+    state.connectedOnce = true;
+    stopDemo();
+    setConn("live", "Connected (live)");
+  });
+  sio.on("disconnect", () => {
+    setConn("", "Disconnected");
+    if (!state.demoTimer) startDemo();
+  });
+  sio.on("connect_error", () => {
+    if (!state.connectedOnce && !state.demoTimer) startDemo();
+  });
+  sio.on("pqd_result", render);
+  sio.on("prediction", render);
+} catch (e) {
+  startDemo();
+}
+setTimeout(() => { if (!state.connectedOnce && !state.demoTimer) startDemo(); }, 3000);
+</script>
+
+</body>
+</html>

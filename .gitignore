@@ -1,4 +1,68 @@
-__pycache__
-venv
-.venv
+# ─── Python ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ─── Virtual environments ─────────────────────────────────────────────────
+venv/
+venv*/
+.venv/
+env/
+.env
+
+# ─── Jupyter ──────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ─── OS metadata ──────────────────────────────────────────────────────────
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Editors / IDEs ───────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── Local-test scratch files ─────────────────────────────────────────────
+req.json
+*.tmp
+/tmp/
+
+# ─── Logs ─────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Hooks / agent caches ─────────────────────────────────────────────────
+.claude/
+*.cache
+
+# ─── Trained model artifacts (regeneratable) ─────────────────────────────
+# Uncomment these only if you DON'T want to track model weights.
+# Right now we keep them so a fresh clone can run the demo without retraining.
+# backend/hybrid_cnn_extractor.h5
+# backend/hybrid_rf.pkl
+# backend/hybrid_label_encoder.pkl
+# backend/hybrid_xscale.npy
+# extensions/cnn_comparison/models/*.pt
+
+# ─── Stage-2 hybrid model intermediate files ─────────────────────────────
+# (training history JSON gets regenerated on every run)
+# extensions/cnn_comparison/results/training_history.json
+
+# ─── Compiled MATLAB / build artifacts ───────────────────────────────────
+*.asv
+*.mexw64
+*.mexa64
+*.mexmaci64

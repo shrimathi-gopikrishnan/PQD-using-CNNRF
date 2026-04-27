@@ -1,0 +1,13 @@
+# Extra dependencies for the extensions/ folder.
+# Install ON TOP of the main project's environment:
+#   venv312\Scripts\pip install -r extensions\requirements.txt
+#
+# These are NOT a replacement for the main project's requirements;
+# they only add what the SHAP and CNN-comparison upgrades need.
+
+shap>=0.46
+torch>=2.2
+psutil>=5.9
+flask>=3.0
+matplotlib>=3.8
+seaborn>=0.13

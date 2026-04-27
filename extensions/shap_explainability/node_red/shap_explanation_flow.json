@@ -1,0 +1,121 @@
+[
+    {
+        "id": "shap_tab",
+        "type": "tab",
+        "label": "PQD SHAP Explanation",
+        "disabled": false,
+        "info": "Self-contained Node-RED flow that calls the SHAP /explain endpoint and renders the explanation card on a UI dashboard. This flow is INDEPENDENT of the existing PQD live dashboard — import alongside, do not patch."
+    },
+    {
+        "id": "shap_inject_test",
+        "type": "inject",
+        "z": "shap_tab",
+        "name": "Test signal (clean sine)",
+        "props": [
+            { "p": "payload" }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"signal\":[]}",
+        "payloadType": "json",
+        "x": 160,
+        "y": 80,
+        "wires": [["shap_build_signal"]]
+    },
+    {
+        "id": "shap_build_signal",
+        "type": "function",
+        "z": "shap_tab",
+        "name": "Build 100-sample sine",
+        "func": "// Generate a 100-sample 50 Hz sine at 5 kHz\nconst N = 100, fs = 5000, f0 = 50;\nconst sig = [];\nfor (let i = 0; i < N; i++) {\n    sig.push(Math.sin(2 * Math.PI * f0 * (i / fs)));\n}\nmsg.payload = { signal: sig };\nreturn msg;",
+        "outputs": 1,
+        "x": 380,
+        "y": 80,
+        "wires": [["shap_call_endpoint"]]
+    },
+    {
+        "id": "shap_call_endpoint",
+        "type": "http request",
+        "z": "shap_tab",
+        "name": "POST /explain",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "http://127.0.0.1:5600/explain",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "authType": "",
+        "x": 600,
+        "y": 80,
+        "wires": [["shap_render_card", "shap_debug"]]
+    },
+    {
+        "id": "shap_debug",
+        "type": "debug",
+        "z": "shap_tab",
+        "name": "Raw response",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 820,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "shap_render_card",
+        "type": "function",
+        "z": "shap_tab",
+        "name": "Render explanation card",
+        "func": "const r = msg.payload || {};\nif (r.error) {\n    msg.payload = `<div style=\"color:#ef4444; padding:12px;\">SHAP error: ${r.error}</div>`;\n    return msg;\n}\n\nconst sev = (r.predicted_class === 'Pure_Sinusoidal') ? '#22c55e' : '#ef4444';\nlet rows = '';\nfor (const f of (r.top_features || [])) {\n    const dirArrow = f.direction === 'increase' ? '▲' : '▼';\n    const dirColor = f.direction === 'increase' ? '#f59e0b' : '#3b82f6';\n    rows += `\n    <tr>\n        <td style=\"padding:6px 10px; color:#e2e6f0;\">${f.name.replace(/_/g, ' ')}</td>\n        <td style=\"padding:6px 10px; font-family:monospace; color:#e2e6f0; text-align:right;\">${(typeof f.value === 'number' ? f.value.toFixed(4) : f.value)} ${f.unit || ''}</td>\n        <td style=\"padding:6px 10px; color:${dirColor}; font-weight:600;\">${dirArrow} ${(f.shap || 0).toFixed(3)}</td>\n    </tr>`;\n}\n\nmsg.payload = `\n<div style=\"font-family: -apple-system, sans-serif; background:#1a1d27; border:1px solid #2a2e42; border-radius:10px; padding:16px; color:#e2e6f0; max-width:560px;\">\n  <div style=\"font-size:11px; color:#8892aa; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:6px;\">SHAP explanation</div>\n  <div style=\"display:flex; align-items:baseline; gap:10px; margin-bottom:10px;\">\n    <div style=\"font-size:20px; font-weight:700;\">${r.predicted_class}</div>\n    <div style=\"font-size:13px; color:${sev}; font-weight:600;\">${(r.confidence || 0).toFixed(1)}%</div>\n  </div>\n  <div style=\"font-size:13px; color:#b6bfd0; margin-bottom:12px; line-height:1.45;\">${r.summary_sentence || ''}</div>\n  <div style=\"font-size:11px; color:#8892aa; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:4px;\">Top contributing features</div>\n  <table style=\"width:100%; border-collapse:collapse; font-size:13px;\">${rows}</table>\n</div>`;\nreturn msg;",
+        "outputs": 1,
+        "x": 850,
+        "y": 120,
+        "wires": [["shap_ui_template"]]
+    },
+    {
+        "id": "shap_ui_template",
+        "type": "ui_template",
+        "z": "shap_tab",
+        "group": "shap_ui_group",
+        "name": "Explanation card",
+        "order": 1,
+        "width": 12,
+        "height": 8,
+        "format": "<div ng-bind-html=\"msg.payload\"></div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 1080,
+        "y": 120,
+        "wires": [[]]
+    },
+    {
+        "id": "shap_ui_group",
+        "type": "ui_group",
+        "name": "PQD SHAP",
+        "tab": "shap_ui_tab",
+        "order": 1,
+        "disp": true,
+        "width": 12,
+        "collapse": false
+    },
+    {
+        "id": "shap_ui_tab",
+        "type": "ui_tab",
+        "name": "PQD Explanations",
+        "icon": "dashboard",
+        "order": 2,
+        "disabled": false,
+        "hidden": false
+    }
+]

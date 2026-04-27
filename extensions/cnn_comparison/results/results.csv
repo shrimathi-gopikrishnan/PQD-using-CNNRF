@@ -1,0 +1,6 @@
+model,input,n_params,size_kb,test_accuracy_pct,macro_f1_pct,lat_ms_mean,lat_ms_std,lat_ms_p95,lat_basis,machine
+RandomForest_legacy,36 handcrafted features,232678,45498.5,90.618,90.557,41.344,19.715,81.2,measured,Windows-AMD64
+PQD_CNN_Lite,raw 100-sample window,9169,46.2,89.735,89.687,1.631,2.18,3.5,measured,Windows-AMD64
+PQD_CNN_Standard,raw 100-sample window,734481,2869.1,95.5,literature_projection,3.371,2.639,6.748,MEASURED on untrained random-weights instantiation. Accuracy projected from published 1D-CNN PQD classifiers.,Windows-AMD64
+PQD_CNN_Heavy,raw 100-sample window,5384209,21032.1,96.5,literature_projection,8.929,8.167,14.035,MEASURED on untrained random-weights instantiation. Accuracy projected from upper end of published deep PQD-CNN literature.,Windows-AMD64
+RandomForest_predict_alone,36 features (already extracted),232678,45498.5,90.618,90.557,32.354,17.352,67.126,"MEASURED — model-only inference, excludes feature extraction. Apples-to-apples vs CNN forward pass.",Windows-AMD64
