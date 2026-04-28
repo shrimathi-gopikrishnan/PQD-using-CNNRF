@@ -1,0 +1,59 @@
+% Practical deployment-architecture diagram (TikZ).
+% Drop-in replacement for figures/deployment.png.
+% Used in main.tex as:  \input{figures/deployment}
+%
+% Requires: \usepackage{tikz}
+%           \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc}
+
+\begin{tikzpicture}[
+  font=\footnotesize,
+  align=center,
+  every path/.style={-{Latex[length=2.4mm]}, thick, line width=0.55pt},
+  src/.style={rectangle, rounded corners=2pt, draw=black, thick,
+              fill=yellow!15, minimum height=7mm,
+              text width=2.0cm, inner sep=3pt},
+  proc/.style={rectangle, rounded corners=3pt, draw=black, thick,
+               minimum height=10mm, text width=2.8cm, inner sep=4pt},
+  bus/.style={proc, fill=green!15},
+  hmi/.style={proc, fill=orange!18, text width=2.7cm},
+]
+
+% Sources column
+\node[src]                          (grid) {AC grid};
+\node[src, below=2mm of grid]       (pv)   {Solar PV};
+\node[src, below=2mm of pv]         (dg)   {DG / EV};
+
+% Sensing front-end
+\node[proc, fill=blue!10, right=10mm of pv] (sense)
+  {\textbf{Sensing}\\
+   {\scriptsize ZMPT101B (V)}\\
+   {\scriptsize ACS712 (I)}\\
+   {\scriptsize ADC @ 5\,kHz}};
+
+% Edge compute (running this paper's pipeline)
+\node[proc, fill=blue!22, right=10mm of sense] (edge)
+  {\textbf{Edge node}\\
+   {\scriptsize Raspberry Pi /}\\
+   {\scriptsize ESP32 / ARM}\\
+   {\scriptsize Stage~1 + Stage~2}};
+
+% Communication bus
+\node[bus, right=10mm of edge] (bus)
+  {\textbf{Comms}\\
+   {\scriptsize RS485 / Modbus}\\
+   {\scriptsize or SocketIO}};
+
+% Outputs (HMIs)
+\node[hmi, right=10mm of bus, yshift=7mm]  (scada) {\textbf{SCADA HMI}};
+\node[hmi, right=10mm of bus, yshift=-7mm] (dash)  {\textbf{Browser dashboard}};
+
+% Edges
+\draw (grid.east) -- (sense.west);
+\draw (pv.east)   -- (sense.west);
+\draw (dg.east)   -- (sense.west);
+\draw (sense)     -- (edge);
+\draw (edge)      -- (bus);
+\draw (bus.east)  -- (scada.west);
+\draw (bus.east)  -- (dash.west);
+
+\end{tikzpicture}

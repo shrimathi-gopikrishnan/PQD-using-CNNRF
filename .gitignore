@@ -70,3 +70,15 @@ logs/
 *.mexw64
 *.mexa64
 *.mexmaci64
+
+# ─── LaTeX build artifacts ───────────────────────────────────────────────
+*.aux
+*.bbl
+*.blg
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+paper.zip
+paper/*.zip

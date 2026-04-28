@@ -1,0 +1,74 @@
+==============================================================
+HOW TO USE THIS PAPER ON OVERLEAF
+==============================================================
+
+1) CREATE A NEW PROJECT
+   - Overleaf  ->  New Project  ->  Upload Project
+   - Zip up the entire `paper/` folder and upload it.
+     (or:  New Project -> Blank Project, then upload the
+      individual files: main.tex, references.bib, figures/ ...)
+
+2) MAIN FILE
+   - Set "main.tex" as the main document (Overleaf usually
+     auto-detects this; if not, click the menu icon at the top
+     left -> "Settings" -> "Main document" -> main.tex).
+
+3) COMPILER
+   - Menu -> Compiler:  pdfLaTeX  (default; works fine)
+   - Menu -> TeX Live version:    most recent
+
+4) BIBLIOGRAPHY
+   - The .bib file is `references.bib`.
+   - Overleaf compiles BibTeX automatically. If a citation
+     shows as [?], click "Recompile from scratch" once
+     (Recompile button -> small arrow -> "Recompile from
+     scratch") so BibTeX is re-run.
+
+5) FIGURES
+   - The .tex file references two placeholders:
+        figures/architecture.png
+        figures/dashboard.png
+   - Create a `figures/` folder inside the Overleaf project
+     and upload the corresponding PNGs.
+   - Suggested sources from this repo (rename or convert
+     to PNG as needed):
+        flowDiagramV2.png  ->  figures/architecture.png
+        a screenshot of dashboard/index.html in a browser
+                           ->  figures/dashboard.png
+     Both figures are in the project root or can be captured
+     from the running dashboard at http://localhost:5000/dashboard
+   - Optional figures you can add and reference in the text
+     by inserting more \includegraphics blocks:
+        results/figures/confusion_matrix_hybrid.png
+        extensions/cnn_comparison/figures/accuracy_vs_latency.png
+        extensions/cnn_comparison/figures/cm_rf.png
+        extensions/cnn_comparison/figures/cm_cnn.png
+
+6) AUTHOR BLOCK
+   - Update the `\author{...}` block in main.tex with the
+     real author list, affiliations and emails before
+     submitting. The current block has one author placeholder
+     filled with your name and email.
+
+7) PAGE LIMIT
+   - IEEEtran conference style usually fits 6 pages including
+     references. The current draft is dense but should land
+     within 6-7 pages with the two figures inserted. If a
+     specific conference imposes a hard 6-page limit you can:
+        - drop the SHAP subsection,
+        - shorten the Related Work section,
+        - or move per-class table to a single column.
+
+8) PLAGIARISM / ORIGINALITY
+   - The text was written from scratch against this project's
+     measured numbers and findings; it does not paraphrase any
+     external paper. Run it through your conference's
+     plagiarism check (Turnitin / iThenticate) before
+     submission - results should be very low overlap, mostly
+     on the IEEE 1159 class names which are necessarily shared.
+
+9) FINAL CHECK BEFORE SUBMISSION
+   - Run an IEEE PDF eXpress check on the compiled PDF (most
+     IEEE conferences require this). It validates fonts and
+     PDF settings.
+==============================================================

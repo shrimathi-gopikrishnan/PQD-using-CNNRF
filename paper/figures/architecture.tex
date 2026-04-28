@@ -1,0 +1,56 @@
+% Two-stage architecture diagram (TikZ).
+% Drop-in replacement for figures/architecture.png.
+% Used in main.tex as:  \input{figures/architecture}
+%
+% Requires: \usepackage{tikz}
+%           \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc}
+
+\begin{tikzpicture}[
+  font=\footnotesize,
+  align=center,
+  every path/.style={-{Latex[length=2.4mm]}, thick, line width=0.55pt},
+  blk/.style={rectangle, rounded corners=3pt, draw=black, thick,
+              minimum height=11mm, text width=3.0cm, inner sep=4pt},
+  io/.style={blk, fill=gray!12},
+  s1/.style={blk, fill=blue!10},
+  s2/.style={blk, fill=blue!22},
+  kb/.style={blk, fill=green!18},
+  out/.style={blk, fill=orange!22},
+  fast/.style={blk, fill=orange!10, text width=2.6cm},
+  lbl/.style={font=\scriptsize, inner sep=1.5pt, fill=white},
+]
+
+% Top row: input -> Stage 1 -> Stage 2 -> KB -> Push to dashboard
+\node[io]                       (in)   {\textbf{Input window}\\
+                                        100 samples\\@ 5\,kHz};
+\node[s1, right=8mm of in]      (st1)  {\textbf{Stage 1}\\Threshold rule\\
+                                        {\scriptsize RMS, THD$_{\mathrm{lo}}$,}\\
+                                        {\scriptsize $K$, $\Delta_{\max}$, $\sigma_R$}\\
+                                        {\scriptsize $<\!1$ ms}};
+\node[s2, right=8mm of st1]     (st2)  {\textbf{Stage 2}\\Hybrid CNN\,+\,RF\\
+                                        {\scriptsize raw $\to$ 1D-CNN}\\
+                                        {\scriptsize $\to$ 64-d $\to$ RF}\\
+                                        {\scriptsize $\sim\!67$ ms}};
+\node[kb, right=8mm of st2]     (kb)   {\textbf{KB enrichment}\\
+                                        {\scriptsize severity, cause,}\\
+                                        {\scriptsize equipment, actions}};
+\node[out, right=8mm of kb]     (push) {\textbf{Dashboard}\\
+                                        {\scriptsize SocketIO}\\
+                                        {\scriptsize \texttt{pqd\_result}}};
+
+% Fast-path Normal output, drawn below Stage 2
+\node[fast, below=10mm of st2]  (norm) {\textbf{Pure\_Sinusoidal}\\
+                                        {\scriptsize fast-path output}};
+
+% Forward edges
+\draw (in)  -- (st1);
+\draw (st1) -- node[lbl, above]{Abnormal} (st2);
+\draw (st2) -- (kb);
+\draw (kb)  -- (push);
+
+% Stage 1 -> Normal path: down then into Pure_Sinusoidal
+\draw (st1.south) |- node[lbl, near start, left]{Normal} (norm.west);
+% Normal path then merges into the dashboard push at the bottom
+\draw (norm.east) -| (push.south);
+
+\end{tikzpicture}
