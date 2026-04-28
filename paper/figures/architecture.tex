@@ -15,7 +15,7 @@
   s1/.style={blk, fill=blue!10},
   s2/.style={blk, fill=blue!22},
   kb/.style={blk, fill=green!18},
-  out/.style={blk, fill=orange!22},
+  dst/.style={blk, fill=orange!22},
   fast/.style={blk, fill=orange!10, text width=2.6cm},
   lbl/.style={font=\scriptsize, inner sep=1.5pt, fill=white},
 ]
@@ -34,7 +34,7 @@
 \node[kb, right=8mm of st2]     (kb)   {\textbf{KB enrichment}\\
                                         {\scriptsize severity, cause,}\\
                                         {\scriptsize equipment, actions}};
-\node[out, right=8mm of kb]     (push) {\textbf{Dashboard}\\
+\node[dst, right=8mm of kb]     (push) {\textbf{Dashboard}\\
                                         {\scriptsize SocketIO}\\
                                         {\scriptsize \texttt{pqd\_result}}};
 

@@ -40,9 +40,8 @@
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
-\title{A Two-Stage Hybrid Convolutional Neural Network and Random Forest
-Pipeline for Real-Time Power Quality Disturbance Classification with
-Knowledge-Based Severity Reasoning}
+\title{Two-Stage Hybrid CNN and Random Forest for Real-Time Power
+Quality Disturbance Classification}
 
 \author{
 \IEEEauthorblockN{Shrimathi G}
@@ -74,50 +73,37 @@ sureshn@svce.ac.in}
 \begin{abstract}
 This paper presents a two-stage hybrid pipeline for real-time
 classification of power quality disturbances (PQDs) defined under
-IEEE~Standard~1159. The proposed system processes raw single-cycle
-voltage windows of 100 samples acquired at 5~kHz, corresponding to one
-period of the 50~Hz fundamental. Stage~1 implements an $O(N)$
-rule-based threshold detector that operates on five physical features
-(root mean square, low-order total harmonic distortion, excess kurtosis,
-maximum consecutive-sample difference, and quarter-window root mean
-square dispersion) and produces a binary Normal/Abnormal decision in
-less than one millisecond. Windows flagged as Abnormal are escalated to
-Stage~2, a hybrid classifier in which a compact one-dimensional
-convolutional neural network learns a 64-dimensional feature
-representation directly from the raw waveform, and a Random Forest with
-200 decision trees performs the final classification across seventeen
-classes (one normal type, eight single disturbances, and eight pairwise
-compound disturbances). Each classified window is enriched at run time
-with a severity grade, probable cause, equipment-at-risk, and three to
-five recommended operator actions retrieved from a 17-entry knowledge
-base derived from IEEE~Standard~1159, and the result is streamed to a
-browser dashboard through a Flask-SocketIO backend. Evaluation on a
-stratified 80-to-20 split of the 17{,}000-signal XPQRS dataset
-(3{,}400 held-out signals) yields a Stage~2 classification accuracy of
-98.85\%, with thirteen of seventeen classes attaining 100\% recall, an
-end-to-end pipeline accuracy of 96.67\% on a balanced mixed-traffic
-test, a 100\% Normal-detection rate at zero false alarms in Stage~1,
-and a complete-path inference latency of approximately 67~milliseconds
-on a single-thread laptop CPU without graphics-processing-unit
-acceleration or cloud connectivity. A preprocessing analysis further
-demonstrates that per-sample maximum-absolute normalization, frequently
-adopted in the deep-learning PQD literature, reduces classification
-accuracy to 52\% by discarding the amplitude information that
-distinguishes Sag, Swell, and Interruption from Pure Sinusoidal; a
-single global-scale normalization derived from the training distribution
-restores the missing 47 percentage points. Post-hoc SHAP attribution is
-integrated on the legacy feature-based baseline to support
-operator-side review of borderline predictions. The proposed system
-satisfies the operational latency constraint imposed by one-cycle
-decision deadlines and is therefore suitable for edge deployment on
-distribution feeders.
+IEEE~Standard~1159. Single-cycle voltage windows of 100 samples at
+5~kHz are first screened by an $O(N)$ threshold detector using five
+physical features: root mean square, low-order total harmonic
+distortion, excess kurtosis, maximum consecutive-sample difference,
+and quarter-window RMS dispersion. Windows flagged as Abnormal are
+escalated to a hybrid Stage~2 classifier in which a compact
+one-dimensional convolutional neural network learns a 64-dimensional
+feature representation from the raw waveform, and a Random Forest
+with 200 trees classifies seventeen classes (one normal, eight single
+disturbances, eight pairwise compound disturbances). Each prediction
+is enriched at run time with a severity grade, cause,
+equipment-at-risk, and three to five operator actions from a 17-entry
+IEEE~1159 knowledge base, and is streamed to a browser dashboard
+through a Flask-SocketIO backend. On a stratified 80-to-20 split of
+the 17{,}000-signal XPQRS dataset, Stage~2 attains 98.85\% accuracy
+(thirteen of seventeen classes at 100\% recall), the end-to-end
+pipeline reaches 96.67\% on a balanced mixed-traffic test, Stage~1
+detects 100\% of Normal windows at zero false alarms, and inference
+takes approximately 67~ms on a single-thread laptop CPU without GPU
+or cloud. A preprocessing analysis shows that per-sample
+maximum-absolute normalization, common in deep-learning PQD work,
+collapses accuracy to 52\% by discarding amplitude information that
+separates Sag, Swell, and Interruption from Pure Sinusoidal; a single
+global-scale normalization recovers the missing 47 percentage points.
+The system is suitable for edge deployment on distribution feeders.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Power quality, power quality disturbance classification,
-IEEE~Standard~1159, two-stage pipeline, one-dimensional convolutional
-neural network, random forest, hybrid classifier, real-time monitoring,
-edge intelligence, knowledge-based reasoning, SHAP interpretability.
+Power quality disturbance classification, IEEE~Standard~1159,
+two-stage pipeline, hybrid CNN-Random Forest, real-time monitoring,
+edge intelligence, knowledge-based reasoning.
 \end{IEEEkeywords}
 
 % =====================================================================
