@@ -135,25 +135,23 @@ distortion, flicker, impulsive transient, oscillatory transient,
 notching, and their pairwise compound combinations --- is formally
 defined in IEEE~Standard~1159~\cite{ieee1159}. A deployable PQ monitor
 is required to identify the specific disturbance class within an
-operationally relevant time window~\cite{khetarpal2020review,
-mahela2021review}.
+operationally relevant time window~\cite{khetarpal2020review}.
 
 Conventional PQ classification approaches extract handcrafted
 statistical or spectral features (root mean square, total harmonic
 distortion, wavelet energies, higher-order statistics) from each
 waveform window and apply a shallow classifier such as a support
 vector machine, an extreme learning machine, or a decision-tree
-ensemble~\cite{thirumala2020classification, sahani2021rf,
-chakravorti2021ensemble}. Recent literature has demonstrated that
-one-dimensional convolutional neural networks (1D-CNNs)~\cite{wang2021hybrid,
-cai2020wigner, eristi2022realtime} can achieve competitive
-classification accuracy directly from the raw voltage cycle without
-explicit feature engineering. Hybrid configurations~\cite{cai2021hybrid,
-liu2020curvelet, garcia2022edge}, in which a CNN serves as a learned
-feature extractor followed by a classical classifier, represent an
-active line of investigation aimed at obtaining the representational
-capacity of deep models while retaining the deployment characteristics
-of classical methods.
+ensemble~\cite{thirumala2019ewt, sahani2021welm}. Recent literature
+has demonstrated that one-dimensional convolutional neural networks
+(1D-CNNs)~\cite{wang2020compressed, cai2020wigner, eristi2021lbp}
+can achieve competitive classification accuracy directly from the
+raw voltage cycle without explicit feature engineering. Hybrid
+configurations~\cite{cai2021hybrid, garcia2020comparison}, in which
+a CNN serves as a learned feature extractor followed by a classical
+classifier, represent an active line of investigation aimed at
+obtaining the representational capacity of deep models while
+retaining the deployment characteristics of classical methods.
 
 This paper presents a real-time PQ classification system that
 integrates these two paradigms within a unified two-stage architecture
@@ -171,7 +169,7 @@ on a single-thread laptop-class CPU without graphics-processing-unit
 (GPU) acceleration or external network connectivity, and is shown to
 satisfy operational latency requirements that cloud-deployed deep PQ
 classifiers cannot meet under typical wide-area round-trip-time
-constraints~\cite{xiao2023iot}.
+constraints.
 
 The remainder of the paper is organized as follows.
 Section~\ref{sec:related} reviews related work.
@@ -194,34 +192,25 @@ PQ disturbance classification has been studied extensively. Khetarpal
 and Tripathi~\cite{khetarpal2020review} provide a comprehensive review
 of the field, surveying signal-processing, machine-learning, and hybrid
 approaches and identifying the trade-offs between feature-engineering
-depth and classification accuracy. Mahela \emph{et al.}\
-\cite{mahela2021review} examine PQ assessment in distribution networks
-with renewable penetration, employing a Stockwell-transform-based
-detector with fuzzy clustering. Thirumala \emph{et al.}\
-\cite{thirumala2020classification} apply empirical wavelet
-transform-based adaptive filtering with a multiclass support vector
-machine. Sahani and Dash~\cite{sahani2021rf} introduce a weighted
-bidirectional extreme learning machine in conjunction with the
-Hilbert--Huang transform. Chakravorti \emph{et al.}\
-\cite{chakravorti2021ensemble} address PQ classification in microgrid
-environments using hybrid signal-processing and machine-learning
-techniques.
+depth and classification accuracy. Thirumala \emph{et al.}\
+\cite{thirumala2019ewt} apply empirical wavelet transform-based
+adaptive filtering with a multiclass support vector machine. Sahani
+and Dash~\cite{sahani2021welm} introduce a weighted bidirectional
+extreme learning machine in conjunction with the Hilbert--Huang
+transform.
 
 Deep-learning approaches have been investigated more recently. Wang
-\emph{et al.}\ \cite{wang2021hybrid} employ a deep convolutional neural
-network on compressed-sensing reconstructions of voltage cycles. Cai
-\emph{et al.}\ \cite{cai2020wigner} feed Wigner--Ville distribution
-images to a deep CNN. Eristi \emph{et al.}\ \cite{eristi2022realtime}
-combine a one-dimensional local binary pattern operator with a CNN.
-Garcia \emph{et al.}\ \cite{garcia2022edge} perform a comparative study
+\emph{et al.}\ \cite{wang2020compressed} employ a deep convolutional
+neural network on compressed-sensing reconstructions of voltage cycles.
+Cai \emph{et al.}\ \cite{cai2020wigner} feed Wigner--Ville distribution
+images to a deep CNN. Eristi \emph{et al.}\ \cite{eristi2021lbp} combine
+a one-dimensional local binary pattern operator with a CNN. Garcia
+\emph{et al.}\ \cite{garcia2020comparison} perform a comparative study
 of CNN, long short-term memory, and CNN-LSTM architectures applied to
-the same PQ disturbance set. Rodriguez-Guerrero \emph{et al.}\
-\cite{rodriguez2022cnn} report parameter estimation of a parameterized
-PQ disturbance model using metaheuristic optimization. The principal
-trade-off across these systems is model size: typical published deep PQ
-classifiers carry between $10^{5}$ and $10^{6}$ parameters, which is
-acceptable for server-side execution but is unsuitable for embedded
-deployment.
+the same PQ disturbance set. The principal trade-off across these
+systems is model size: typical published deep PQ classifiers carry
+between $10^{5}$ and $10^{6}$ parameters, which is acceptable for
+server-side execution but is unsuitable for embedded deployment.
 
 The work most closely related to the present study is that of Cai
 \emph{et al.}\ \cite{cai2021hybrid}, which integrates a CNN feature
@@ -238,8 +227,8 @@ for every classified window.
 
 Two-stage architectures that screen with a fast rule and invoke a
 heavier model only on suspicious windows are common in time-series
-anomaly detection in general~\cite{xiao2023iot}. However, no published
-PQ system known to the authors has reported the screen behaviour with
+anomaly detection in general. However, no published PQ system known
+to the authors has reported the screen behaviour with
 both detection rate and false-alarm rate, employed a hybrid CNN and
 tree-ensemble classifier as the second stage, and emitted
 operator-actionable knowledge-base metadata as part of the deployed
@@ -375,8 +364,8 @@ round-trip-time floor}
 Stage~1 detection is completed in less than one millisecond, and
 Stage~2 classification in approximately three cycles of the 50~Hz
 fundamental. Wide-area cloud round-trip times are typically
-100--300~ms before any inference is initiated~\cite{xiao2023iot}, which
-is several multiples of one PQ cycle. The proposed system therefore
+100--300~ms before any inference is initiated, which is several
+multiples of one PQ cycle. The proposed system therefore
 satisfies an operational deadline that cloud-deployed deep PQ
 classifiers cannot satisfy under realistic network conditions.
 
@@ -505,15 +494,16 @@ the FFT of the window,
 The detector trips if $\mathrm{THD}_{\mathrm{lo}} > 0.025$ (harmonics,
 notch).
 
-\subsubsection{Excess kurtosis}
+\subsubsection{Kurtosis}
 \begin{equation}
   K \;=\;
   \frac{\frac{1}{N}\sum_{n}\bigl(x(n)-\mu_x\bigr)^{4}}
-       {\bigl(\frac{1}{N}\sum_{n}\bigl(x(n)-\mu_x\bigr)^{2}\bigr)^{2}}
-   - 3.
+       {\bigl(\frac{1}{N}\sum_{n}\bigl(x(n)-\mu_x\bigr)^{2}\bigr)^{2}}.
   \label{eq:kurt}
 \end{equation}
-The detector trips if $K > 2.5$ (impulsive transients).
+This is the Pearson form of kurtosis, for which a clean unit-amplitude
+sinusoid yields $K \approx 1.5$. The detector trips if $K > 2.5$
+(impulsive transients).
 
 \subsubsection{Maximum consecutive-sample difference}
 \begin{equation}
@@ -668,28 +658,33 @@ enrichment is a deterministic lookup rather than a model output, but
 it transforms the bare class label into actionable diagnostic content.
 
 \subsection{Hyperparameter Optimization}
-The Stage~2 Random Forest hyperparameters are optimized using
-\texttt{RandomizedSearchCV} with five-fold cross-validation on the
-training set. Table~\ref{tab:hp} summarizes the search space and the
-selected configuration. Twenty-four combinations were evaluated; the
-top thirteen configurations were observed to lie within $\pm 0.05$
-percentage points of one another, indicating that the classifier's
-accuracy is saturated on the deployed feature space.
+The Stage~2 Random Forest hyperparameters are optimized using a
+five-fold stratified cross-validation grid search over the search
+space summarized in Table~\ref{tab:hp}. Twenty-four parameter
+combinations were evaluated, yielding 120 fits in total
+($24 \times 5$). The deployed configuration uses 200 trees with
+$\log_2$ feature selection and reaches a held-out test accuracy of
+98.85\%. The grid-search optimum (500 trees with $\sqrt{}$ feature
+selection) reaches 98.88\%, an absolute improvement of 0.03
+percentage points. The top thirteen of the 24 configurations are
+observed to lie within $\pm 0.05$ percentage points of one another,
+indicating that classification accuracy is saturated on the deployed
+64-dimensional CNN feature space.
 
 \begin{table}[t]
   \centering
-  \caption{Hyperparameter optimization for the Stage 2 Random Forest.}
+  \caption{Stage 2 Random Forest hyperparameter grid search. The
+           deployed configuration is retained because the grid-search
+           optimum exceeds it by less than the test-set noise floor.}
   \label{tab:hp}
   \begin{tabular}{lll}
     \toprule
-    Hyperparameter & Search space & Selected value \\
+    Hyperparameter & Search space & Deployed value \\
     \midrule
-    \texttt{n\_estimators}     & \{100, 200, 500\} & 200 \\
-    \texttt{max\_depth}        & \{None, 20, 40, 60\} & None \\
-    \texttt{max\_features}     & \{sqrt, log2\} & log2 \\
-    \texttt{min\_samples\_split} & \{2, 5, 10\} & 2 \\
-    \texttt{min\_samples\_leaf}  & \{1, 2, 4\}  & 1 \\
-    \texttt{class\_weight}     & \{None, balanced\} & None \\
+    \texttt{n\_estimators}      & \{100, 200, 500\} & 200    \\
+    \texttt{max\_depth}         & \{None, 20\}      & None   \\
+    \texttt{max\_features}      & \{sqrt, log2\}    & log2   \\
+    \texttt{min\_samples\_leaf} & \{1, 2\}          & 1      \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -702,10 +697,9 @@ follows:
         FFT-based total harmonic distortion approximation requiring
         $O(N\log N)$ on a fixed-size buffer. The total measured
         latency is below 1~ms for $N = 100$ on a single-thread CPU.
-  \item \textbf{Stage~2 CNN forward pass.} 216{,}049 floating-point
-        operations per window are required, dominated by the three
-        Conv1D layers. The measured mean latency is approximately
-        40~ms.
+  \item \textbf{Stage~2 CNN forward pass.} The forward pass is
+        dominated by the three Conv1D layers. The measured mean
+        latency is approximately 40~ms.
   \item \textbf{Stage~2 Random Forest predict.} The cost is
         $O(T\,d_{\max})$ for $T = 200$ trees on the 64-dimensional
         feature vector. The measured mean latency is approximately
@@ -979,8 +973,8 @@ single-thread laptop CPU.
 \end{table}
 
 A growing portion of the deep-learning PQ literature relies on cloud
-inference in order to accommodate model size~\cite{xiao2023iot}. Cloud
-deployment, however, introduces a network round-trip-time overhead
+inference in order to accommodate model size. Cloud deployment,
+however, introduces a network round-trip-time overhead
 before any inference is initiated. Wide-area round-trip times from a
 distribution feeder to a regional data centre are typically 100--300~ms
 even on a clean wired link, and substantially higher on congested or
