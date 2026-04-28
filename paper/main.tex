@@ -77,10 +77,10 @@ classification of power quality disturbances (PQDs) defined under
 IEEE~Standard~1159. The proposed system processes raw single-cycle
 voltage windows of 100 samples acquired at 5~kHz, corresponding to one
 period of the 50~Hz fundamental. Stage~1 implements an $O(N)$
-rule-based threshold detector that operates on five physical features ---
-root mean square, low-order total harmonic distortion, excess kurtosis,
+rule-based threshold detector that operates on five physical features
+(root mean square, low-order total harmonic distortion, excess kurtosis,
 maximum consecutive-sample difference, and quarter-window root mean
-square dispersion --- and produces a binary Normal/Abnormal decision in
+square dispersion) and produces a binary Normal/Abnormal decision in
 less than one millisecond. Windows flagged as Abnormal are escalated to
 Stage~2, a hybrid classifier in which a compact one-dimensional
 convolutional neural network learns a 64-dimensional feature
@@ -130,9 +130,9 @@ infrastructure, and non-linear industrial loads. The injection of
 non-sinusoidal currents into distribution networks produces voltage
 waveforms whose deviation from the nominal sinusoid is frequently the
 limiting factor for sensitive end-use equipment. The categorization of
-such deviations --- voltage sag, voltage swell, interruption, harmonic
+such deviations (voltage sag, voltage swell, interruption, harmonic
 distortion, flicker, impulsive transient, oscillatory transient,
-notching, and their pairwise compound combinations --- is formally
+notching, and their pairwise compound combinations) is formally
 defined in IEEE~Standard~1159~\cite{ieee1159}. A deployable PQ monitor
 is required to identify the specific disturbance class within an
 operationally relevant time window~\cite{khetarpal2020review}.
@@ -216,8 +216,8 @@ The work most closely related to the present study is that of Cai
 \emph{et al.}\ \cite{cai2021hybrid}, which integrates a CNN feature
 extractor with an extreme gradient boosting classifier for PQ
 disturbance recognition. The present work adopts the broader hybrid
-template --- a CNN feature extractor combined with an ensemble
-classifier head --- and extends it along three axes: (i) the
+template (a CNN feature extractor combined with an ensemble
+classifier head) and extends it along three axes: (i) the
 introduction of an $O(N)$ rule-based screening stage that precedes the
 heavier model; (ii) the extension of the class set to seventeen,
 including eight pairwise compound disturbances; and (iii) the
@@ -410,8 +410,8 @@ corresponds to multiplication by a constant in the range
 $1.1$--$1.8$~pu. An interruption is approximated by a near-zero
 amplitude window. Harmonic disturbances superimpose integer-multiple
 sinusoids on the fundamental. Flicker corresponds to slow amplitude
-modulation of the fundamental. Several classes --- sag, swell, and
-interruption --- therefore differ from the normal reference solely in
+modulation of the fundamental. Several classes (sag, swell, and
+interruption) therefore differ from the normal reference solely in
 amplitude. As demonstrated in Section~\ref{sec:results}, this
 characteristic interacts critically with the choice of input
 normalization.
@@ -471,7 +471,7 @@ implementation $s = 2.0535$. The reason per-sample scaling is unsuitable
 for amplitude-distinguished PQD classes, and the recovery achieved by
 global scaling, are reported in Section~\ref{sec:norm}.
 
-\subsection{Stage 1 --- Threshold Detector}\label{sec:stage1}
+\subsection{Stage 1: Threshold Detector}\label{sec:stage1}
 Stage~1 computes five features and returns Abnormal if any one of them
 exceeds its threshold.
 
@@ -551,7 +551,7 @@ of Stage~1 is not to perform fine-grained classification but to filter
 clean traffic out of the heavier inference path while maintaining a
 zero Abnormal-as-Normal misclassification rate.
 
-\subsection{Stage 2 --- Hybrid 1D-CNN and Random Forest}
+\subsection{Stage 2: Hybrid 1D-CNN and Random Forest}
 \label{sec:stage2}
 Stage~2 produces the seventeen-class decision. The 1D-CNN does not
 output class logits at inference time; instead, its penultimate layer
@@ -978,7 +978,7 @@ however, introduces a network round-trip-time overhead
 before any inference is initiated. Wide-area round-trip times from a
 distribution feeder to a regional data centre are typically 100--300~ms
 even on a clean wired link, and substantially higher on congested or
-wireless paths --- already several multiples of one PQ cycle. The
+wireless paths, which is already several multiples of one PQ cycle. The
 proposed pipeline performs detection in less than one millisecond and
 classification within approximately three cycles, entirely on a single
 CPU thread, without GPU acceleration or external service connectivity.
@@ -997,34 +997,6 @@ indicates that classification accuracy is saturated on the deployed
 feature space, and that further hyperparameter tuning of the Random
 Forest head is unlikely to yield improvements that exceed the
 statistical noise of the test split.
-
-\subsection{Sample Prediction Outputs}
-A representative dashboard output for an Abnormal input is shown in
-Fig.~\ref{fig:pred_abn}. The classifier identifies the waveform as
-Harmonics with confidence 1.00 and renders the cause and recommended
-actions retrieved from the knowledge base. The corresponding output
-for a Normal input is shown in Fig.~\ref{fig:pred_norm}: Stage~1
-classifies the clean sinusoid as Pure\_Sinusoidal in less than one
-millisecond, and Stage~2 is not invoked.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.95\columnwidth]{figures/pred_abnormal.png}
-  \caption{Sample prediction output for an Abnormal input. The
-  dashboard shows the waveform on the left, the classification card
-  with the predicted class and confidence on the right, and the cause
-  and actions card below.}
-  \label{fig:pred_abn}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.95\columnwidth]{figures/pred_normal.png}
-  \caption{Sample prediction output for a Normal input. A clean sine
-  cycle is classified as Pure\_Sinusoidal by Stage~1 in less than one
-  millisecond; Stage~2 is not invoked.}
-  \label{fig:pred_norm}
-\end{figure}
 
 \subsection{Per-Prediction Interpretability via SHAP}
 A TreeSHAP~\cite{lundberg2020trees} explainer is integrated as a
@@ -1097,8 +1069,8 @@ Forest classifier (Stage~2), which attains 98.85\% accuracy across
 seventeen IEEE~1159 classes (thirteen of seventeen at 100\% recall)
 and operates in approximately 67~ms per call. The end-to-end pipeline
 attains 96.67\% accuracy on a balanced mixed-traffic test, and the
-system streams its predictions --- each enriched online with severity,
-cause, equipment-at-risk, and recommended operator actions --- to a
+system streams its predictions, each enriched online with severity,
+cause, equipment-at-risk, and recommended operator actions, to a
 browser dashboard via a Flask-SocketIO backend. The full pipeline
 executes on a laptop CPU without GPU acceleration or external network
 connectivity, completing detection in less than one millisecond and
