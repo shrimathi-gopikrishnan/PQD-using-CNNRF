@@ -122,6 +122,10 @@ def main() -> int:
       }
       ::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
       * { scrollbar-width: none !important; }
+      /* Hide the "Stream paused" toast that pops up while we freeze the
+         stream to take a clean shot — it would otherwise show in the
+         bottom-right of every captured image. */
+      #toast, .toast { opacity: 0 !important; visibility: hidden !important; }
     """
 
     def prep_page(page) -> None:
