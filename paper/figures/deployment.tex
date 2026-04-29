@@ -1,53 +1,44 @@
 % Practical deployment-architecture diagram (TikZ).
-% Drop-in replacement for figures/deployment.png.
 % Used in main.tex as:  \input{figures/deployment}
-%
-% Requires: \usepackage{tikz}
-%           \usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc}
+% Sized to fit a two-column IEEE figure* (max ~17.6cm).
 
 \begin{tikzpicture}[
-  font=\footnotesize,
+  font=\scriptsize,
   align=center,
-  every path/.style={-{Latex[length=2.4mm]}, thick, line width=0.55pt},
+  every path/.style={-{Latex[length=2.2mm]}, thick, line width=0.6pt},
   src/.style={rectangle, rounded corners=2pt, draw=black, thick,
-              fill=yellow!15, minimum height=7mm,
-              text width=2.0cm, inner sep=3pt},
-  proc/.style={rectangle, rounded corners=3pt, draw=black, thick,
-               minimum height=10mm, text width=2.8cm, inner sep=4pt},
+              fill=yellow!15, minimum height=6mm,
+              text width=1.7cm, inner sep=2pt},
+  proc/.style={rectangle, rounded corners=2pt, draw=black, thick,
+               minimum height=10mm, text width=2.5cm, inner sep=3pt},
   bus/.style={proc, fill=green!15},
-  hmi/.style={proc, fill=orange!18, text width=2.7cm},
+  hmi/.style={proc, fill=orange!18, text width=2.4cm},
 ]
 
-% Sources column
 \node[src]                          (grid) {AC grid};
-\node[src, below=2mm of grid]       (pv)   {Solar PV};
-\node[src, below=2mm of pv]         (dg)   {DG / EV};
+\node[src, below=1.5mm of grid]     (pv)   {Solar PV};
+\node[src, below=1.5mm of pv]       (dg)   {DG / EV};
 
-% Sensing front-end
-\node[proc, fill=blue!10, right=10mm of pv] (sense)
+\node[proc, fill=blue!10, right=6mm of pv] (sense)
   {\textbf{Sensing}\\
-   {\scriptsize ZMPT101B (V)}\\
-   {\scriptsize ACS712 (I)}\\
-   {\scriptsize ADC @ 5\,kHz}};
+   {\tiny ZMPT101B (V)}\\
+   {\tiny ACS712 (I)}\\
+   {\tiny ADC @ 5\,kHz}};
 
-% Edge compute (running this paper's pipeline)
-\node[proc, fill=blue!22, right=10mm of sense] (edge)
+\node[proc, fill=blue!22, right=6mm of sense] (edge)
   {\textbf{Edge node}\\
-   {\scriptsize Raspberry Pi /}\\
-   {\scriptsize ESP32 / ARM}\\
-   {\scriptsize Stage~1 + Stage~2}};
+   {\tiny Raspberry Pi /}\\
+   {\tiny ESP32 / ARM}\\
+   {\tiny Stage~1 + Stage~2}};
 
-% Communication bus
-\node[bus, right=10mm of edge] (bus)
+\node[bus, right=6mm of edge] (bus)
   {\textbf{Comms}\\
-   {\scriptsize RS485 / Modbus}\\
-   {\scriptsize or SocketIO}};
+   {\tiny RS485 / Modbus}\\
+   {\tiny or SocketIO}};
 
-% Outputs (HMIs)
-\node[hmi, right=10mm of bus, yshift=7mm]  (scada) {\textbf{SCADA HMI}};
-\node[hmi, right=10mm of bus, yshift=-7mm] (dash)  {\textbf{Browser dashboard}};
+\node[hmi, right=6mm of bus, yshift=6mm]  (scada) {\textbf{SCADA HMI}};
+\node[hmi, right=6mm of bus, yshift=-6mm] (dash)  {\textbf{Browser dashboard}};
 
-% Edges
 \draw (grid.east) -- (sense.west);
 \draw (pv.east)   -- (sense.west);
 \draw (dg.east)   -- (sense.west);

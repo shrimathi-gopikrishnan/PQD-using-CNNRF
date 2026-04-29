@@ -15,8 +15,6 @@
 
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithm}
-\usepackage{algpseudocode}
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
@@ -421,13 +419,7 @@ connected dashboard clients.
 \begin{figure*}[t]
   \centering
   \input{figures/architecture}
-  \caption{Two-stage classification architecture. Stage~1 is a
-  rule-based threshold detector with a sub-millisecond budget;
-  Stage~2 is invoked only on Abnormal windows and is a hybrid
-  one-dimensional convolutional neural network feature extractor
-  followed by a Random Forest classifier. Each prediction is enriched
-  online from an IEEE~1159 knowledge base before being pushed to the
-  dashboard.}
+  \caption{Two-stage classification architecture.}
   \label{fig:arch}
 \end{figure*}
 
@@ -458,79 +450,77 @@ for amplitude-distinguished PQD classes, and the recovery achieved by
 global scaling, are reported in Section~\ref{sec:norm}.
 
 \subsection{Stage 1: Threshold Detector}\label{sec:stage1}
-Stage~1 computes five features and returns Abnormal if any one of them
-exceeds its threshold.
-
-\subsubsection{Root mean square (RMS)}
+Stage~1 computes five complementary statistical features and returns
+Abnormal if any one of them exceeds its threshold. The root mean
+square of the window
 \begin{equation}
-  V_{\mathrm{RMS}} \;=\; \sqrt{\frac{1}{N}\sum_{n=0}^{N-1} x(n)^{2}}.
+  V_{\mathrm{RMS}} \;=\; \sqrt{\frac{1}{N}\sum_{n=0}^{N-1} x(n)^{2}}
   \label{eq:rms}
 \end{equation}
-The detector trips if $V_{\mathrm{RMS}} < 0.65$~pu (sag,
-interruption) or $V_{\mathrm{RMS}} > 0.78$~pu (swell).
-
-\subsubsection{Low-order total harmonic distortion approximation}
-Using the magnitudes $V_h$ of the $h$-th harmonic bin obtained from
-the FFT of the window,
+is the principal indicator of voltage sag, swell, and interruption,
+and the detector trips when $V_{\mathrm{RMS}} \notin [0.65, 0.78]$~pu.
+A low-order total harmonic distortion approximation,
 \begin{equation}
   \mathrm{THD}_{\mathrm{lo}} \;=\;
-  \frac{\sqrt{V_2^{2} + V_3^{2} + V_5^{2}}}{V_1}.
+  \frac{\sqrt{V_2^{2} + V_3^{2} + V_5^{2}}}{V_1},
   \label{eq:thd}
 \end{equation}
-The detector trips if $\mathrm{THD}_{\mathrm{lo}} > 0.025$ (harmonics,
-notch).
-
-\subsubsection{Kurtosis}
+formed from the magnitudes $V_h$ of the $h$-th harmonic bin obtained
+from the FFT of the window, captures harmonic and notch disturbances;
+the detector trips when $\mathrm{THD}_{\mathrm{lo}} > 0.025$. The
+Pearson form of kurtosis,
 \begin{equation}
   K \;=\;
   \frac{\frac{1}{N}\sum_{n}\bigl(x(n)-\mu_x\bigr)^{4}}
-       {\bigl(\frac{1}{N}\sum_{n}\bigl(x(n)-\mu_x\bigr)^{2}\bigr)^{2}}.
+       {\bigl(\frac{1}{N}\sum_{n}\bigl(x(n)-\mu_x\bigr)^{2}\bigr)^{2}},
   \label{eq:kurt}
 \end{equation}
-This is the Pearson form of kurtosis, for which a clean unit-amplitude
-sinusoid yields $K \approx 1.5$. The detector trips if $K > 2.5$
-(impulsive transients).
-
-\subsubsection{Maximum consecutive-sample difference}
+yields $K \approx 1.5$ for a clean unit-amplitude sinusoid and is
+employed to flag impulsive transients via the rule $K > 2.5$. The
+maximum consecutive-sample difference
 \begin{equation}
   \Delta_{\max} \;=\;
-  \max_{n=1,\ldots,N-1}\;\bigl|x(n) - x(n-1)\bigr|.
+  \max_{n=1,\ldots,N-1}\;\bigl|x(n) - x(n-1)\bigr|
   \label{eq:dmax}
 \end{equation}
-The detector trips if $\Delta_{\max} > 0.15$~pu (notch, oscillatory
-burst).
-
-\subsubsection{Quarter-window RMS dispersion}
-The window is partitioned into four quarters of length $N/4 = 25$, and
-the RMS $r_q$ of each quarter is computed; the dispersion is
+captures the abrupt slew rates characteristic of notch and
+oscillatory bursts, with the detector tripping when
+$\Delta_{\max} > 0.15$~pu. Finally, the window is partitioned into
+four quarters of length $N/4 = 25$ samples, the RMS $r_q$ of each
+quarter is computed, and the dispersion
 \begin{equation}
-  \sigma_R \;=\;
-  \mathrm{std}\bigl(r_1, r_2, r_3, r_4\bigr).
+  \sigma_R \;=\; \mathrm{std}\bigl(r_1, r_2, r_3, r_4\bigr)
   \label{eq:qrms}
 \end{equation}
-The detector trips if $\sigma_R > 0.020$ (flicker).
-
+is used to flag amplitude modulation (flicker) via $\sigma_R > 0.020$.
 All five features are $O(N)$ on the 100-sample window, yielding a
-Stage~1 budget below 1~ms on a generic CPU. The decision procedure is
-summarized in Algorithm~\ref{alg:stage1}.
+Stage~1 budget below 1~ms on a generic CPU. The complete decision
+logic is summarized in Table~\ref{tab:stage1}.
 
-\begin{algorithm}[t]
-\caption{Stage~1 threshold detector}\label{alg:stage1}
-\begin{algorithmic}[1]
-\Require window $x[0..N-1]$, $N = 100$
-\State $V_{\mathrm{RMS}} \gets$ Eq.~\eqref{eq:rms}
-\If{$V_{\mathrm{RMS}} \notin [0.65, 0.78]$} \Return Abnormal \EndIf
-\State $\mathrm{THD}_{\mathrm{lo}} \gets$ Eq.~\eqref{eq:thd}
-\If{$\mathrm{THD}_{\mathrm{lo}} > 0.025$} \Return Abnormal \EndIf
-\State $K \gets$ Eq.~\eqref{eq:kurt}
-\If{$K > 2.5$} \Return Abnormal \EndIf
-\State $\Delta_{\max} \gets$ Eq.~\eqref{eq:dmax}
-\If{$\Delta_{\max} > 0.15$} \Return Abnormal \EndIf
-\State $\sigma_R \gets$ Eq.~\eqref{eq:qrms}
-\If{$\sigma_R > 0.020$} \Return Abnormal \EndIf
-\State \Return Normal
-\end{algorithmic}
-\end{algorithm}
+\begin{table}[t]
+  \centering
+  \caption{Stage~1 Threshold-Detector Decision Logic}
+  \label{tab:stage1}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \renewcommand{\arraystretch}{1.15}
+  \begin{tabular}{@{}cC{1.05cm}C{0.7cm}C{2.1cm}C{1.7cm}@{}}
+    \toprule
+    \# & Feature & Eqn. & Trip condition & Flagged \\
+    \midrule
+    1 & RMS                  & \eqref{eq:rms}  &
+        $V_{\mathrm{RMS}}\!\notin\![0.65,0.78]$\,pu & Sag, Swell, Interruption \\
+    2 & THD$_{\mathrm{lo}}$  & \eqref{eq:thd}  &
+        $\mathrm{THD}_{\mathrm{lo}}\!>\!0.025$      & Harmonics, Notch \\
+    3 & Kurtosis             & \eqref{eq:kurt} &
+        $K\!>\!2.5$                                 & Impulsive transient \\
+    4 & $\Delta_{\max}$      & \eqref{eq:dmax} &
+        $\Delta_{\max}\!>\!0.15$\,pu                & Notch, Oscillatory \\
+    5 & $\sigma_R$           & \eqref{eq:qrms} &
+        $\sigma_R\!>\!0.020$                        & Flicker \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 The thresholds are deliberately set on the conservative side. The role
 of Stage~1 is not to perform fine-grained classification but to filter
@@ -582,28 +572,48 @@ $M_j$ is the number of coefficients at that level.
 
 \subsubsection{1D-CNN feature extractor}
 The globally normalized window $\tilde{x}$ (Eq.~\ref{eq:globalnorm})
-is supplied directly to a compact 1D-CNN whose architecture is
-specified as follows:
-\begin{enumerate}
-  \item Three convolutional blocks of the form
-        $\textrm{Conv1D}(k=5,\,c) \rightarrow \textrm{BatchNorm}
-        \rightarrow \textrm{ReLU} \rightarrow \textrm{MaxPool}(2)$,
-        with channel widths $c \in \{16, 32, 64\}$.
-  \item A global average pooling layer that collapses the temporal
-        axis.
-  \item A fully connected hidden layer with 128 units and ReLU
-        activation.
-  \item A 64-unit feature layer; its activation forms the feature
-        vector $\mathbf{f} \in \mathbb{R}^{64}$.
-  \item A softmax output head used during training only.
-\end{enumerate}
+is supplied directly to a compact one-dimensional convolutional
+neural network. The network comprises three convolutional blocks of
+the form $\textrm{Conv1D}(k\!=\!5,\,c) \!\to\! \textrm{BatchNorm}
+\!\to\! \textrm{ReLU} \!\to\! \textrm{MaxPool}(2)$, with channel
+widths $c \in \{16, 32, 64\}$, followed by a global average pooling
+layer that collapses the temporal axis. A fully connected hidden
+layer of 128 units with ReLU activation is succeeded by a 64-unit
+feature layer whose activation forms the feature vector
+$\mathbf{f} \in \mathbb{R}^{64}$. A softmax output head is used
+during training only and is removed at inference. The architecture
+is summarized in Table~\ref{tab:cnn}.
 
-The CNN is trained for at most 80 epochs using Adam with an initial
-learning rate of $10^{-3}$ and an early-stopping criterion on
-validation accuracy with patience 10 and best-weights restoration.
-Additive white Gaussian noise at 40~dB SNR is applied online to each
-training batch. After training, the softmax head is removed and the
-network is retained as a fixed feature extractor.
+\begin{table}[t]
+  \centering
+  \caption{1D-CNN Feature-Extractor Architecture}
+  \label{tab:cnn}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{1.10}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Layer & Configuration & Output \\
+    \midrule
+    Input             & raw waveform               & $100\times1$ \\
+    Conv1D + BN + ReLU & $k\!=\!5$, $c\!=\!16$      & $100\times16$ \\
+    MaxPool           & $s\!=\!2$                  & $50\times16$ \\
+    Conv1D + BN + ReLU & $k\!=\!5$, $c\!=\!32$      & $50\times32$ \\
+    MaxPool           & $s\!=\!2$                  & $25\times32$ \\
+    Conv1D + BN + ReLU & $k\!=\!5$, $c\!=\!64$      & $25\times64$ \\
+    GlobalAvgPool     & --                         & $64$ \\
+    Dense + ReLU      & 128 units                  & $128$ \\
+    Dense (feature)   & 64 units                   & $\mathbf{f}\!\in\!\mathbb{R}^{64}$ \\
+    Softmax (training) & 17 classes                & $17$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The network is trained for at most 80 epochs using the Adam
+optimizer with an initial learning rate of $10^{-3}$ and an
+early-stopping criterion on validation accuracy with patience 10
+and best-weights restoration. Additive white Gaussian noise at
+40~dB SNR is applied online to each training batch.
 
 \subsubsection{Random Forest head}
 A Random Forest with $T = 200$ decision trees and
@@ -659,13 +669,18 @@ indicating that classification accuracy is saturated on the deployed
 
 \begin{table}[t]
   \centering
-  \caption{Stage 2 Random Forest hyperparameter grid search. The
-           deployed configuration is retained because the grid-search
-           optimum exceeds it by less than the test-set noise floor.}
+  \caption{Stage~2 Random Forest hyperparameter search space and
+           deployed configuration. A 24-combination, five-fold
+           stratified cross-validation grid search was conducted;
+           the deployed setting lies within $\pm 0.05$ percentage
+           points of the grid-search optimum.}
   \label{tab:hp}
-  \begin{tabular}{lll}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{1.10}
+  \begin{tabular}{@{}lll@{}}
     \toprule
-    Hyperparameter & Search space & Deployed value \\
+    Hyperparameter & Search space & Deployed \\
     \midrule
     \texttt{n\_estimators}      & \{100, 200, 500\} & 200    \\
     \texttt{max\_depth}         & \{None, 20\}      & None   \\
@@ -676,24 +691,18 @@ indicating that classification accuracy is saturated on the deployed
 \end{table}
 
 \subsection{Computational Complexity and Real-Time Considerations}
-For an $N$-sample window the computational cost of each stage is as
-follows:
-\begin{itemize}
-  \item \textbf{Stage~1.} Each of the five features is $O(N)$, with the
-        FFT-based total harmonic distortion approximation requiring
-        $O(N\log N)$ on a fixed-size buffer. The total measured
-        latency is below 1~ms for $N = 100$ on a single-thread CPU.
-  \item \textbf{Stage~2 CNN forward pass.} The forward pass is
-        dominated by the three Conv1D layers. The measured mean
-        latency is approximately 40~ms.
-  \item \textbf{Stage~2 Random Forest predict.} The cost is
-        $O(T\,d_{\max})$ for $T = 200$ trees on the 64-dimensional
-        feature vector. The measured mean latency is approximately
-        26~ms.
-  \item \textbf{End-to-end Abnormal path.} Approximately 67~ms per
-        window, equivalent to approximately three cycles of the 50~Hz
-        fundamental.
-\end{itemize}
+For an $N$-sample window the computational cost of Stage~1 is
+dominated by the FFT-based total harmonic distortion approximation,
+which is $O(N\log N)$ on a fixed-size buffer; the remaining four
+features are $O(N)$, and the total measured Stage~1 latency is below
+1~ms for $N = 100$ on a single-thread CPU. The Stage~2 CNN forward
+pass is dominated by the three Conv1D layers, with a measured mean
+latency of approximately 40~ms, while the Random Forest prediction
+cost is $O(T\,d_{\max})$ for $T = 200$ trees on the 64-dimensional
+feature vector, contributing approximately 26~ms. The combined
+end-to-end Abnormal path therefore consumes approximately 67~ms per
+window, equivalent to approximately three cycles of the 50~Hz
+fundamental.
 
 The pipeline is engineered for single-thread CPU inference. The deep
 learning framework's graph caches are warmed at backend start-up using
@@ -712,10 +721,14 @@ operator review.
 \begin{figure*}[t]
   \centering
   \input{figures/deployment}
-  \caption{Practical deployment architecture. Multi-source signal
-  acquisition is followed by a sensing front-end, edge-compute
-  inference using the proposed pipeline, and an RS485 or SocketIO
-  link to the monitoring human--machine interface.}
+  \caption{Envisaged field-deployment architecture. Voltage and
+  current signals from the AC grid, solar photovoltaic plant, and
+  distributed generation or electric-vehicle loads are sampled at
+  5~kHz through a sensing front-end based on ZMPT101B and ACS712
+  modules, processed by an edge-compute node (Raspberry~Pi, ESP32,
+  or ARM-class microcontroller) executing the proposed Stage~1 and
+  Stage~2 pipeline, and forwarded to a SCADA human--machine
+  interface or a browser dashboard over RS485/Modbus or SocketIO.}
   \label{fig:deploy}
 \end{figure*}
 
@@ -735,13 +748,15 @@ signal generation, employ this path.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.95\columnwidth]{figures/dashboard.png}
-  \caption{Live dashboard. Six panels are rendered: waveform and
-  spectrum, signal parameters, the classification card with top-three
-  candidates, cause and equipment-at-risk, recommended operator
-  actions, and a system-statistics strip with a rolling latency
-  timeline. The dashboard automatically falls back to a built-in
-  demonstration mode if the backend is unreachable for three seconds.}
+  \includegraphics[width=0.98\columnwidth]{figures/dashboard.png}
+  \caption{Real-time browser dashboard rendering six panels: live
+  waveform with tabbed FFT spectrum view, signal-parameter gauges
+  (RMS, total harmonic distortion, crest factor, peak), a
+  classification card with severity badge and top-three confidence
+  bars, the cause and equipment-at-risk fields, recommended operator
+  actions, and a rolling latency timeline. The dashboard falls back
+  to a built-in demonstration mode if the backend is unreachable for
+  three seconds.}
   \label{fig:dashboard}
 \end{figure}
 
@@ -792,11 +807,16 @@ reported in Table~\ref{tab:modelcmp}.
 
 \begin{table}[t]
   \centering
-  \caption{Comparison of classical machine learning models on two
-           datasets. Accuracy and macro F1 are reported on the
-           held-out test split.}
+  \caption{Comparison of classical machine learning models trained
+           on the same 36-feature multi-domain vector. Accuracy and
+           macro-averaged F1 score are reported on the held-out test
+           split for the XPQRS dataset and a second PQ Disturbances
+           dataset.}
   \label{tab:modelcmp}
-  \begin{tabular}{lcccc}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{1.10}
+  \begin{tabular}{@{}lcccc@{}}
     \toprule
     Model & XPQRS Acc. & PQ Acc. & XPQRS F1 & PQ F1 \\
     \midrule
@@ -835,10 +855,16 @@ Table~\ref{tab:perclass}.
 
 \begin{table}[t]
   \centering
-  \caption{Per-class classification performance on the 3,400-sample
-           test set, with 200 samples per class.}
+  \caption{Per-class precision, recall, and F1 score (\%) of the
+           hybrid 1D-CNN and Random Forest classifier on the
+           3{,}400-sample test set (200 samples per class).
+           Thirteen of seventeen classes attain perfect recall;
+           residual errors are confined to Sag and Sag\_Flicker.}
   \label{tab:perclass}
-  \begin{tabular}{lrrr}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{1.05}
+  \begin{tabular}{@{}lrrr@{}}
     \toprule
     Class & Recall & Precision & F1 \\
     \midrule
@@ -884,9 +910,11 @@ extension and is reserved for future work.
   \centering
   \includegraphics[width=0.98\columnwidth]{figures/confusion_matrix_hybrid.png}
   \caption{Confusion matrix of the hybrid 1D-CNN and Random Forest
-  classifier on the 3,400-sample test set. Thirteen of seventeen
-  classes attain 100\% recall, and the residual errors are confined
-  to a single $2 \times 2$ block between Sag and Sag\_Flicker.}
+  classifier on the 3{,}400-sample held-out test set (200 samples
+  per class). Thirteen of seventeen classes attain 100\% recall,
+  and the residual misclassifications are confined to a single
+  $2\!\times\!2$ block formed by Sag and Sag\_Flicker, attributable
+  to the single-cycle context window.}
   \label{fig:cm}
 \end{figure}
 
@@ -939,13 +967,18 @@ single-thread laptop CPU.
 
 \begin{table}[t]
   \centering
-  \caption{Per-stage latency budget on a single-thread laptop CPU.
-           Measurements are steady-state, post warm-up, without GPU
-           acceleration or cloud connectivity.}
+  \caption{Per-stage inference latency on a single-thread laptop
+           CPU. Values are reported in milliseconds at the median
+           (p50), mean, and 95th percentile (p95). All measurements
+           are steady-state, post warm-up, without GPU acceleration
+           or cloud connectivity.}
   \label{tab:latency}
-  \begin{tabular}{lrrr}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{1.10}
+  \begin{tabular}{@{}lrrr@{}}
     \toprule
-    Stage & p50 (ms) & Mean (ms) & p95 (ms) \\
+    Stage & p50 & Mean & p95 \\
     \midrule
     Stage~1 (5 features + decision)        & 0.4  & 0.4  & 0.7  \\
     Stage~2 -- CNN forward pass            & 38   & 40   & 55   \\
