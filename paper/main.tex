@@ -35,6 +35,20 @@
 \newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
 \newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
 
+% --- Float placement parameters ---------------------------------------
+% Loosen the LaTeX float-placement defaults so tables and figures can sit
+% near the text that references them rather than getting deferred to the
+% next available page-top.
+\renewcommand{\topfraction}{0.92}      % up to 92% of a page can be floats at top
+\renewcommand{\bottomfraction}{0.6}    % up to 60% at bottom
+\renewcommand{\textfraction}{0.08}     % only 8% text required on a float page
+\renewcommand{\floatpagefraction}{0.7} % a float-only page must be >=70% full
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{5}
+\setlength{\textfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\intextsep}{10pt plus 2pt minus 2pt}
+
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
@@ -416,7 +430,7 @@ Stage~2, which produces a 17-class label and a confidence vector. The
 result is enriched with knowledge-base metadata and pushed to all
 connected dashboard clients.
 
-\begin{figure*}[t]
+\begin{figure*}[!htbp]
   \centering
   \input{figures/architecture}
   \caption{Two-stage classification architecture.}
@@ -497,28 +511,32 @@ All five features are $O(N)$ on the 100-sample window, yielding a
 Stage~1 budget below 1~ms on a generic CPU. The complete decision
 logic is summarized in Table~\ref{tab:stage1}.
 
-\begin{table}[t]
+\begin{table}[!htbp]
   \centering
   \caption{Stage~1 Threshold-Detector Decision Logic}
   \label{tab:stage1}
   \footnotesize
   \setlength{\tabcolsep}{3pt}
-  \renewcommand{\arraystretch}{1.15}
-  \begin{tabular}{@{}cC{1.05cm}C{0.7cm}C{2.1cm}C{1.7cm}@{}}
-    \toprule
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{|c|c|c|c|c|}
+    \hline
     \# & Feature & Eqn. & Trip condition & Flagged \\
-    \midrule
+    \hline
     1 & RMS                  & \eqref{eq:rms}  &
-        $V_{\mathrm{RMS}}\!\notin\![0.65,0.78]$\,pu & Sag, Swell, Interruption \\
+        $V_{\mathrm{RMS}}\!\notin\![0.65,0.78]$\,pu & Sag, Swell, Int. \\
+    \hline
     2 & THD$_{\mathrm{lo}}$  & \eqref{eq:thd}  &
         $\mathrm{THD}_{\mathrm{lo}}\!>\!0.025$      & Harmonics, Notch \\
+    \hline
     3 & Kurtosis             & \eqref{eq:kurt} &
-        $K\!>\!2.5$                                 & Impulsive transient \\
+        $K\!>\!2.5$                                 & Impulsive trans. \\
+    \hline
     4 & $\Delta_{\max}$      & \eqref{eq:dmax} &
-        $\Delta_{\max}\!>\!0.15$\,pu                & Notch, Oscillatory \\
+        $\Delta_{\max}\!>\!0.15$\,pu                & Notch, Oscill. \\
+    \hline
     5 & $\sigma_R$           & \eqref{eq:qrms} &
         $\sigma_R\!>\!0.020$                        & Flicker \\
-    \bottomrule
+    \hline
   \end{tabular}
 \end{table}
 
@@ -584,28 +602,37 @@ $\mathbf{f} \in \mathbb{R}^{64}$. A softmax output head is used
 during training only and is removed at inference. The architecture
 is summarized in Table~\ref{tab:cnn}.
 
-\begin{table}[t]
+\begin{table}[!htbp]
   \centering
   \caption{1D-CNN Feature-Extractor Architecture}
   \label{tab:cnn}
   \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \renewcommand{\arraystretch}{1.10}
-  \begin{tabular}{@{}lll@{}}
-    \toprule
+  \setlength{\tabcolsep}{5pt}
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{|l|l|l|}
+    \hline
     Layer & Configuration & Output \\
-    \midrule
-    Input             & raw waveform               & $100\times1$ \\
-    Conv1D + BN + ReLU & $k\!=\!5$, $c\!=\!16$      & $100\times16$ \\
-    MaxPool           & $s\!=\!2$                  & $50\times16$ \\
-    Conv1D + BN + ReLU & $k\!=\!5$, $c\!=\!32$      & $50\times32$ \\
-    MaxPool           & $s\!=\!2$                  & $25\times32$ \\
-    Conv1D + BN + ReLU & $k\!=\!5$, $c\!=\!64$      & $25\times64$ \\
-    GlobalAvgPool     & --                         & $64$ \\
-    Dense + ReLU      & 128 units                  & $128$ \\
-    Dense (feature)   & 64 units                   & $\mathbf{f}\!\in\!\mathbb{R}^{64}$ \\
-    Softmax (training) & 17 classes                & $17$ \\
-    \bottomrule
+    \hline
+    Input              & Raw waveform           & $100\times1$ \\
+    \hline
+    Conv1D + BN + ReLU & $k\!=\!5$, $c\!=\!16$  & $100\times16$ \\
+    \hline
+    MaxPool            & $s\!=\!2$              & $50\times16$ \\
+    \hline
+    Conv1D + BN + ReLU & $k\!=\!5$, $c\!=\!32$  & $50\times32$ \\
+    \hline
+    MaxPool            & $s\!=\!2$              & $25\times32$ \\
+    \hline
+    Conv1D + BN + ReLU & $k\!=\!5$, $c\!=\!64$  & $25\times64$ \\
+    \hline
+    GlobalAvgPool      & --                     & $64$ \\
+    \hline
+    Dense + ReLU       & 128 units              & $128$ \\
+    \hline
+    Dense (feature)    & 64 units               & $\mathbf{f}\!\in\!\mathbb{R}^{64}$ \\
+    \hline
+    Softmax (training) & 17 classes             & $17$ \\
+    \hline
   \end{tabular}
 \end{table}
 
@@ -667,26 +694,25 @@ observed to lie within $\pm 0.05$ percentage points of one another,
 indicating that classification accuracy is saturated on the deployed
 64-dimensional CNN feature space.
 
-\begin{table}[t]
+\begin{table}[!htbp]
   \centering
-  \caption{Stage~2 Random Forest hyperparameter search space and
-           deployed configuration. A 24-combination, five-fold
-           stratified cross-validation grid search was conducted;
-           the deployed setting lies within $\pm 0.05$ percentage
-           points of the grid-search optimum.}
+  \caption{Stage~2 Random Forest Hyperparameter Search Space}
   \label{tab:hp}
   \footnotesize
-  \setlength{\tabcolsep}{4pt}
-  \renewcommand{\arraystretch}{1.10}
-  \begin{tabular}{@{}lll@{}}
-    \toprule
+  \setlength{\tabcolsep}{6pt}
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{|l|l|l|}
+    \hline
     Hyperparameter & Search space & Deployed \\
-    \midrule
+    \hline
     \texttt{n\_estimators}      & \{100, 200, 500\} & 200    \\
+    \hline
     \texttt{max\_depth}         & \{None, 20\}      & None   \\
+    \hline
     \texttt{max\_features}      & \{sqrt, log2\}    & log2   \\
+    \hline
     \texttt{min\_samples\_leaf} & \{1, 2\}          & 1      \\
-    \bottomrule
+    \hline
   \end{tabular}
 \end{table}
 
@@ -718,17 +744,10 @@ that executes the trained model, and forwarded over RS485/Modbus or
 SocketIO to a panel meter or a SCADA human--machine interface for
 operator review.
 
-\begin{figure*}[t]
+\begin{figure*}[!htbp]
   \centering
   \input{figures/deployment}
-  \caption{Envisaged field-deployment architecture. Voltage and
-  current signals from the AC grid, solar photovoltaic plant, and
-  distributed generation or electric-vehicle loads are sampled at
-  5~kHz through a sensing front-end based on ZMPT101B and ACS712
-  modules, processed by an edge-compute node (Raspberry~Pi, ESP32,
-  or ARM-class microcontroller) executing the proposed Stage~1 and
-  Stage~2 pipeline, and forwarded to a SCADA human--machine
-  interface or a browser dashboard over RS485/Modbus or SocketIO.}
+  \caption{Field-deployment architecture.}
   \label{fig:deploy}
 \end{figure*}
 
@@ -736,27 +755,22 @@ operator review.
 \section{Real-Time Backend and Dashboard}\label{sec:realtime}
 % =====================================================================
 The classifier is encapsulated within a Flask and Flask-SocketIO
-server. Three input paths are exposed: a JSON \texttt{POST /api/predict}
-endpoint for one-shot HTTP queries, a SocketIO \texttt{predict} event
-for low-latency clients, and a TCP listener on port 5555 that accepts
-newline-delimited JSON frames of the form
-\texttt{\{label, signal:[v0..v99], window\}}. The TCP listener
-broadcasts each prediction as a SocketIO \texttt{pqd\_result} event to
-all connected dashboards. Both the included MATLAB sender and the
-Python sender, the latter implementing realistic synthetic IEEE~1159
-signal generation, employ this path.
+server that exposes three input paths. A JSON \texttt{POST
+/api/predict} endpoint serves one-shot HTTP queries, a SocketIO
+\texttt{predict} event serves low-latency clients, and a TCP listener
+on port 5555 accepts newline-delimited JSON frames of the form
+\texttt{\{label, signal:[v\textsubscript{0}, \ldots,
+v\textsubscript{99}], window\}}. Each prediction received over the
+TCP path is rebroadcast as a SocketIO \texttt{pqd\_result} event to
+every connected dashboard. The included MATLAB sender and the Python
+sender both publish through this path; the Python sender additionally
+generates realistic synthetic waveforms in accordance with the
+IEEE~1159 disturbance definitions.
 
-\begin{figure}[t]
+\begin{figure}[!htbp]
   \centering
   \includegraphics[width=0.98\columnwidth]{figures/dashboard.png}
-  \caption{Real-time browser dashboard rendering six panels: live
-  waveform with tabbed FFT spectrum view, signal-parameter gauges
-  (RMS, total harmonic distortion, crest factor, peak), a
-  classification card with severity badge and top-three confidence
-  bars, the cause and equipment-at-risk fields, recommended operator
-  actions, and a rolling latency timeline. The dashboard falls back
-  to a built-in demonstration mode if the backend is unreachable for
-  three seconds.}
+  \caption{Real-time browser dashboard.}
   \label{fig:dashboard}
 \end{figure}
 
@@ -805,28 +819,29 @@ Forest. Performance on the XPQRS dataset and on a second PQ dataset
 (the PQ Disturbances Dataset, with pre-extracted features) is
 reported in Table~\ref{tab:modelcmp}.
 
-\begin{table}[t]
+\begin{table}[!htbp]
   \centering
-  \caption{Comparison of classical machine learning models trained
-           on the same 36-feature multi-domain vector. Accuracy and
-           macro-averaged F1 score are reported on the held-out test
-           split for the XPQRS dataset and a second PQ Disturbances
-           dataset.}
+  \caption{Classical Classifier Comparison on the 36-Feature Vector}
   \label{tab:modelcmp}
   \footnotesize
   \setlength{\tabcolsep}{4pt}
-  \renewcommand{\arraystretch}{1.10}
-  \begin{tabular}{@{}lcccc@{}}
-    \toprule
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{|l|c|c|c|c|}
+    \hline
     Model & XPQRS Acc. & PQ Acc. & XPQRS F1 & PQ F1 \\
-    \midrule
+    \hline
     Gradient Boosting   & 0.9112 & 0.9837 & 0.9107 & 0.9836 \\
+    \hline
     Random Forest       & 0.9062 & 0.9812 & 0.9056 & 0.9816 \\
+    \hline
     Decision Tree       & 0.8650 & 0.9625 & 0.8646 & 0.9620 \\
+    \hline
     Logistic Regression & 0.8524 & 0.9375 & 0.8489 & 0.9372 \\
+    \hline
     SVM                 & 0.8335 & 0.8812 & 0.8298 & 0.8798 \\
+    \hline
     $k$NN               & 0.8006 & 0.9062 & 0.7955 & 0.9046 \\
-    \bottomrule
+    \hline
   \end{tabular}
 \end{table}
 
@@ -853,42 +868,53 @@ Sag-Flicker (91.00\%), Swell (99.50\%), and Swell-Flicker (99.50\%).
 The complete per-class breakdown is reported in
 Table~\ref{tab:perclass}.
 
-\begin{table}[t]
+\begin{table}[!htbp]
   \centering
-  \caption{Per-class precision, recall, and F1 score (\%) of the
-           hybrid 1D-CNN and Random Forest classifier on the
-           3{,}400-sample test set (200 samples per class).
-           Thirteen of seventeen classes attain perfect recall;
-           residual errors are confined to Sag and Sag\_Flicker.}
+  \caption{Per-Class Classification Performance (\%)}
   \label{tab:perclass}
   \footnotesize
   \setlength{\tabcolsep}{4pt}
-  \renewcommand{\arraystretch}{1.05}
-  \begin{tabular}{@{}lrrr@{}}
-    \toprule
+  \renewcommand{\arraystretch}{1.15}
+  \begin{tabular}{|l|c|c|c|}
+    \hline
     Class & Recall & Precision & F1 \\
-    \midrule
+    \hline
     Pure\_Sinusoidal       & 100.00 & 100.00 & 100.00 \\
+    \hline
     Flicker                & 100.00 & 100.00 & 100.00 \\
+    \hline
     Harmonics              & 100.00 & 100.00 & 100.00 \\
+    \hline
     Harmonics\_Flicker     & 100.00 & 100.00 & 100.00 \\
+    \hline
     Harmonics\_Notch       & 100.00 & 100.00 & 100.00 \\
+    \hline
     Interruption           & 100.00 & 100.00 & 100.00 \\
+    \hline
     Notch                  & 100.00 & 100.00 & 100.00 \\
+    \hline
     Oscillatory\_Transient & 100.00 & 100.00 & 100.00 \\
+    \hline
     Sag\_Harmonics         & 100.00 & 100.00 & 100.00 \\
+    \hline
     Sag\_Oscillatory       & 100.00 & 100.00 & 100.00 \\
+    \hline
     Swell\_Harmonics       & 100.00 & 100.00 & 100.00 \\
+    \hline
     Swell\_Oscillatory     & 100.00 & 100.00 & 100.00 \\
+    \hline
     Transient              & 100.00 & 100.00 & 100.00 \\
+    \hline
     Swell                  & 99.50  & 99.50  & 99.50  \\
+    \hline
     Swell\_Flicker         & 99.50  & 99.50  & 99.50  \\
+    \hline
     Sag\_Flicker           & 91.00  & 90.55  & 90.77  \\
+    \hline
     Sag                    & 90.50  & 90.95  & 90.73  \\
-    \midrule
-    \textbf{Macro avg}     & \textbf{98.85} & \textbf{98.85}
-                           & \textbf{98.85} \\
-    \bottomrule
+    \hline
+    \textbf{Macro avg}     & \textbf{98.85} & \textbf{98.85} & \textbf{98.85} \\
+    \hline
   \end{tabular}
 \end{table}
 
@@ -906,15 +932,10 @@ observable envelope variation within that cycle. A multi-cycle
 context window for these classes is identified as a natural
 extension and is reserved for future work.
 
-\begin{figure}[t]
+\begin{figure}[!htbp]
   \centering
   \includegraphics[width=0.98\columnwidth]{figures/confusion_matrix_hybrid.png}
-  \caption{Confusion matrix of the hybrid 1D-CNN and Random Forest
-  classifier on the 3{,}400-sample held-out test set (200 samples
-  per class). Thirteen of seventeen classes attain 100\% recall,
-  and the residual misclassifications are confined to a single
-  $2\!\times\!2$ block formed by Sag and Sag\_Flicker, attributable
-  to the single-cycle context window.}
+  \caption{Confusion matrix on the held-out test set.}
   \label{fig:cm}
 \end{figure}
 
@@ -965,29 +986,29 @@ inference path is never exercised on clean traffic.
 Table~\ref{tab:latency} reports the per-stage latency budget on a
 single-thread laptop CPU.
 
-\begin{table}[t]
+\begin{table}[!htbp]
   \centering
-  \caption{Per-stage inference latency on a single-thread laptop
-           CPU. Values are reported in milliseconds at the median
-           (p50), mean, and 95th percentile (p95). All measurements
-           are steady-state, post warm-up, without GPU acceleration
-           or cloud connectivity.}
+  \caption{Per-Stage Inference Latency (ms)}
   \label{tab:latency}
   \footnotesize
   \setlength{\tabcolsep}{4pt}
-  \renewcommand{\arraystretch}{1.10}
-  \begin{tabular}{@{}lrrr@{}}
-    \toprule
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{|l|c|c|c|}
+    \hline
     Stage & p50 & Mean & p95 \\
-    \midrule
+    \hline
     Stage~1 (5 features + decision)        & 0.4  & 0.4  & 0.7  \\
+    \hline
     Stage~2 -- CNN forward pass            & 38   & 40   & 55   \\
+    \hline
     Stage~2 -- Random Forest predict       & 24   & 26   & 38   \\
+    \hline
     Stage~2 -- total (Abnormal path)       & 65   & 67   & 88   \\
-    \midrule
+    \hline
     \textbf{End-to-end -- Normal path}     & \textbf{0.4} & \textbf{0.4} & \textbf{0.7} \\
+    \hline
     \textbf{End-to-end -- Abnormal path}   & \textbf{65}  & \textbf{67}  & \textbf{88}  \\
-    \bottomrule
+    \hline
   \end{tabular}
 \end{table}
 
